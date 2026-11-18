@@ -1,0 +1,548 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rede de segurança global: nega tudo que não for explicitamente liberado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================
+    // Primitivas Globais (Zero Trust)
+    // ==========================
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string &&
+        id.size() >= 2 &&
+        id.size() <= 128 &&
+        id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedSignedIn() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          request.auth.token.email == 'evoluatechbr@gmail.com' &&
+          request.auth.token.email_verified == true
+        )
+      );
+    }
+
+    function isBarber() {
+      return isVerifiedSignedIn() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/barberAccounts/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/barberAccounts/$(request.auth.uid)).data.active == true
+        )
+      );
+    }
+
+    // ==========================
+    // Validation Blueprints
+    // ==========================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid',
+          'name',
+          'phone',
+          'email',
+          'role',
+          'notificationsEnabled',
+          'whatsappUpdatesEnabled',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid',
+          'name',
+          'phone',
+          'email',
+          'role',
+          'notificationsEnabled',
+          'whatsappUpdatesEnabled',
+          'privacyAcceptedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.phone is string && data.phone.size() <= 24 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+        data.role in ['client', 'barber', 'admin'] &&
+        data.notificationsEnabled is bool &&
+        data.whatsappUpdatesEnabled is bool &&
+        (!('privacyAcceptedAt' in data) || (data.privacyAcceptedAt is string && data.privacyAcceptedAt.size() <= 40)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRole(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidBarberAccount(data) {
+      return data.keys().hasAll(['uid', 'barberId', 'name', 'active', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'barberId', 'name', 'active', 'createdAt']) &&
+        isValidId(data.uid) &&
+        isValidId(data.barberId) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.active is bool &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidServiceItem(data) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'category',
+          'priceCents',
+          'durationMinutes',
+          'active',
+          'barberIds',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'name',
+          'category',
+          'priceCents',
+          'durationMinutes',
+          'active',
+          'barberIds',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+        data.category in ['Cortes', 'Barba', 'Combos', 'Acabamentos'] &&
+        data.priceCents is int && data.priceCents >= 100 && data.priceCents <= 500000 &&
+        data.durationMinutes is int && data.durationMinutes >= 5 && data.durationMinutes <= 360 &&
+        data.active is bool &&
+        data.barberIds is list &&
+        data.barberIds.size() >= 1 &&
+        data.barberIds.size() <= 20 &&
+        data.barberIds[0] is string &&
+        data.barberIds[0].size() <= 80 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBarberProfile(data) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'role',
+          'isAvailable',
+          'workingDays',
+          'serviceIds',
+          'pixDetails',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'name',
+          'role',
+          'isAvailable',
+          'workingDays',
+          'serviceIds',
+          'pixDetails',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.role is string && data.role.size() >= 2 && data.role.size() <= 100 &&
+        data.isAvailable is bool &&
+        data.workingDays is list && data.workingDays.size() >= 1 && data.workingDays.size() <= 7 && data.workingDays[0] is int &&
+        data.serviceIds is list && data.serviceIds.size() >= 1 && data.serviceIds.size() <= 30 && data.serviceIds[0] is string && data.serviceIds[0].size() <= 80 &&
+        data.pixDetails is map &&
+        data.pixDetails.keys().hasAll(['pixKey', 'pixKeyType', 'holderName', 'bankName', 'city']) &&
+        data.pixDetails.keys().hasOnly(['pixKey', 'pixKeyType', 'holderName', 'bankName', 'city']) &&
+        data.pixDetails.pixKey is string && data.pixDetails.pixKey.size() >= 3 && data.pixDetails.pixKey.size() <= 140 &&
+        data.pixDetails.pixKeyType in ['Celular', 'E-mail', 'CPF/CNPJ', 'Chave Aleatória'] &&
+        data.pixDetails.holderName is string && data.pixDetails.holderName.size() >= 2 && data.pixDetails.holderName.size() <= 100 &&
+        data.pixDetails.bankName is string && data.pixDetails.bankName.size() >= 2 && data.pixDetails.bankName.size() <= 60 &&
+        data.pixDetails.city is string && data.pixDetails.city.size() >= 2 && data.pixDetails.city.size() <= 60 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidRescheduleMap(rr) {
+      return rr is map &&
+        rr.keys().hasAll(['preferredDate', 'preferredTime', 'requestedAt']) &&
+        rr.keys().hasOnly(['preferredDate', 'preferredTime', 'reason', 'requestedAt']) &&
+        rr.preferredDate is string && rr.preferredDate.size() == 10 && rr.preferredDate.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        rr.preferredTime is string && rr.preferredTime.size() == 5 && rr.preferredTime.matches('^\\d{2}:\\d{2}$') &&
+        rr.requestedAt is string && rr.requestedAt.size() <= 40 &&
+        (!('reason' in rr) || (rr.reason is string && rr.reason.size() <= 300));
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll([
+          'id',
+          'bookingCode',
+          'shopId',
+          'clientId',
+          'clientName',
+          'clientPhone',
+          'serviceId',
+          'serviceName',
+          'serviceDurationMinutes',
+          'priceCents',
+          'barberId',
+          'barberName',
+          'anyBarberRequested',
+          'date',
+          'startTime',
+          'endTime',
+          'slotLockId',
+          'paymentMethod',
+          'status',
+          'changeHistory',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'bookingCode',
+          'shopId',
+          'clientId',
+          'clientName',
+          'clientPhone',
+          'clientEmail',
+          'serviceId',
+          'serviceName',
+          'serviceDurationMinutes',
+          'priceCents',
+          'barberId',
+          'barberName',
+          'anyBarberRequested',
+          'date',
+          'startTime',
+          'endTime',
+          'slotLockId',
+          'notes',
+          'paymentMethod',
+          'status',
+          'rescheduleRequest',
+          'changeHistory',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.shopId) &&
+        isValidId(data.clientId) &&
+        isValidId(data.serviceId) &&
+        isValidId(data.barberId) &&
+        isValidId(data.slotLockId) &&
+        data.bookingCode is string && data.bookingCode.size() >= 4 && data.bookingCode.size() <= 20 &&
+        data.clientName is string && data.clientName.size() >= 2 && data.clientName.size() <= 80 &&
+        data.clientPhone is string && data.clientPhone.size() >= 8 && data.clientPhone.size() <= 24 &&
+        (!('clientEmail' in data) || (data.clientEmail is string && data.clientEmail.size() <= 120)) &&
+        data.serviceName is string && data.serviceName.size() >= 2 && data.serviceName.size() <= 100 &&
+        data.serviceDurationMinutes is int && data.serviceDurationMinutes >= 5 && data.serviceDurationMinutes <= 360 &&
+        data.priceCents is int && data.priceCents >= 100 && data.priceCents <= 500000 &&
+        data.barberName is string && data.barberName.size() >= 2 && data.barberName.size() <= 80 &&
+        data.anyBarberRequested is bool &&
+        data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.startTime is string && data.startTime.size() == 5 && data.startTime.matches('^\\d{2}:\\d{2}$') &&
+        data.endTime is string && data.endTime.size() == 5 && data.endTime.matches('^\\d{2}:\\d{2}$') &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 400)) &&
+        data.paymentMethod in ['pix', 'cartao_credito', 'cartao_debito', 'dinheiro'] &&
+        data.status in ['Pendente', 'Confirmado', 'Concluído', 'Cancelado', 'Reagendamento solicitado'] &&
+        (!('rescheduleRequest' in data) || isValidRescheduleMap(data.rescheduleRequest)) &&
+        data.changeHistory is list &&
+        data.changeHistory.size() >= 1 &&
+        data.changeHistory.size() <= 30 &&
+        data.changeHistory[0] is map &&
+        data.changeHistory[0].keys().hasAll(['id', 'timestamp', 'actor', 'action', 'newStatus']) &&
+        data.changeHistory[0].keys().hasOnly(['id', 'timestamp', 'actor', 'action', 'previousStatus', 'newStatus', 'note']) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAvailabilitySlot(data) {
+      return data.keys().hasAll([
+          'shopId',
+          'barberId',
+          'date',
+          'startTime',
+          'endTime',
+          'appointmentId',
+          'clientId',
+          'kind',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'shopId',
+          'barberId',
+          'date',
+          'startTime',
+          'endTime',
+          'appointmentId',
+          'clientId',
+          'kind',
+          'createdAt'
+        ]) &&
+        isValidId(data.shopId) &&
+        isValidId(data.barberId) &&
+        isValidId(data.appointmentId) &&
+        isValidId(data.clientId) &&
+        data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.startTime is string && data.startTime.size() == 5 && data.startTime.matches('^\\d{2}:\\d{2}$') &&
+        data.endTime is string && data.endTime.size() == 5 && data.endTime.matches('^\\d{2}:\\d{2}$') &&
+        data.kind in ['booking', 'barber_block'] &&
+        data.createdAt is timestamp;
+    }
+
+    // ==========================
+    // Conectividade /test/connection
+    // ==========================
+    match /test/{docId} {
+      allow get: if isSignedIn() && isValidId(docId);
+      allow list, write: if false;
+    }
+
+    // ==========================
+    // Perfis Privados (PII Isolada)
+    // ==========================
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isBarber());
+      allow list: if isBarber();
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().role == 'client' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'name',
+              'phone',
+              'email',
+              'notificationsEnabled',
+              'whatsappUpdatesEnabled',
+              'privacyAcceptedAt',
+              'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // ==========================
+    // Papéis Restritos (Admins e Barbeiros)
+    // ==========================
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminRole(incoming()) &&
+        incoming().uid == adminId &&
+        incoming().createdAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminRole(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin() && isValidId(adminId);
+    }
+
+    match /barberAccounts/{barberUid} {
+      allow get: if isValidId(barberUid) && (isOwner(barberUid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(barberUid) &&
+        isValidBarberAccount(incoming()) &&
+        incoming().uid == barberUid &&
+        incoming().createdAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(barberUid) &&
+        isValidBarberAccount(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin() && isValidId(barberUid);
+    }
+
+    // ==========================
+    // Catálogo Oficial (Somente Admin escreve)
+    // ==========================
+    match /services/{serviceId} {
+      allow get: if isSignedIn() && isValidId(serviceId);
+      allow list: if isSignedIn();
+      allow create, update: if isAdmin() &&
+        isValidId(serviceId) &&
+        isValidServiceItem(incoming()) &&
+        incoming().id == serviceId &&
+        incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(serviceId);
+    }
+
+    match /barbers/{barberId} {
+      allow get: if isSignedIn() && isValidId(barberId);
+      allow list: if isSignedIn();
+      allow create, update: if isAdmin() &&
+        isValidId(barberId) &&
+        isValidBarberProfile(incoming()) &&
+        incoming().id == barberId &&
+        incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(barberId);
+    }
+
+    // ==========================
+    // Agendamentos (Compartilhado Cliente + Barbeiro)
+    // ==========================
+    match /appointments/{appointmentId} {
+      allow get: if isVerifiedSignedIn() &&
+        isValidId(appointmentId) &&
+        (existing().clientId == request.auth.uid || isBarber());
+
+      allow list: if isVerifiedSignedIn() &&
+        (resource.data.clientId == request.auth.uid || isBarber());
+
+      allow create: if isVerifiedSignedIn() &&
+        isValidId(appointmentId) &&
+        isValidAppointment(incoming()) &&
+        incoming().id == appointmentId &&
+        incoming().clientId == request.auth.uid &&
+        incoming().status == 'Confirmado' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/services/$(incoming().serviceId)) &&
+        get(/databases/$(database)/documents/services/$(incoming().serviceId)).data.priceCents == incoming().priceCents &&
+        get(/databases/$(database)/documents/services/$(incoming().serviceId)).data.durationMinutes == incoming().serviceDurationMinutes &&
+        exists(/databases/$(database)/documents/barbers/$(incoming().barberId)) &&
+        existsAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)) &&
+        getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.appointmentId == appointmentId &&
+        getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.clientId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.barberId == incoming().barberId &&
+        getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.date == incoming().date &&
+        getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.startTime == incoming().startTime;
+
+      allow update: if isVerifiedSignedIn() &&
+        isValidId(appointmentId) &&
+        isValidAppointment(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().bookingCode == existing().bookingCode &&
+        incoming().shopId == existing().shopId &&
+        incoming().clientId == existing().clientId &&
+        incoming().serviceId == existing().serviceId &&
+        incoming().priceCents == existing().priceCents &&
+        incoming().serviceDurationMinutes == existing().serviceDurationMinutes &&
+        incoming().slotLockId == existing().slotLockId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (
+            isBarber() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status',
+              'date',
+              'startTime',
+              'endTime',
+              'barberId',
+              'barberName',
+              'rescheduleRequest',
+              'changeHistory',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            existing().clientId == request.auth.uid &&
+            !(existing().status in ['Concluído', 'Cancelado']) && (
+              // Ação: Cancelamento pelo cliente (libera trava de horário atomicamente)
+              (
+                incoming().status == 'Cancelado' &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'status',
+                  'changeHistory',
+                  'updatedAt'
+                ]) &&
+                !existsAfter(/databases/$(database)/documents/availabilitySlots/$(existing().slotLockId))
+              ) ||
+              // Ação: Solicitação de reagendamento pelo cliente
+              (
+                incoming().status == 'Reagendamento solicitado' &&
+                ('rescheduleRequest' in incoming()) &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'status',
+                  'rescheduleRequest',
+                  'changeHistory',
+                  'updatedAt'
+                ])
+              )
+            )
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(appointmentId);
+    }
+
+    // ==========================
+    // Índice Sem PII de Horários Ocupados (Trava Atômica)
+    // ==========================
+    match /availabilitySlots/{slotId} {
+      allow get: if isVerifiedSignedIn() && isValidId(slotId);
+      allow list: if isVerifiedSignedIn();
+
+      allow create: if isVerifiedSignedIn() &&
+        isValidId(slotId) &&
+        isValidAvailabilitySlot(incoming()) &&
+        incoming().createdAt == request.time && (
+          (
+            isBarber() &&
+            incoming().kind == 'barber_block'
+          ) ||
+          (
+            incoming().kind == 'booking' &&
+            incoming().clientId == request.auth.uid &&
+            existsAfter(/databases/$(database)/documents/appointments/$(incoming().appointmentId)) &&
+            getAfter(/databases/$(database)/documents/appointments/$(incoming().appointmentId)).data.slotLockId == slotId &&
+            getAfter(/databases/$(database)/documents/appointments/$(incoming().appointmentId)).data.clientId == request.auth.uid
+          )
+        );
+
+      allow update: if isBarber() &&
+        isValidId(slotId) &&
+        isValidAvailabilitySlot(incoming()) &&
+        incoming().createdAt == existing().createdAt;
+
+      allow delete: if isValidId(slotId) && (
+        isBarber() || (
+          isVerifiedSignedIn() &&
+          existing().clientId == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/appointments/$(existing().appointmentId)).data.status == 'Cancelado'
+        )
+      );
+    }
+  }
+}

@@ -1,0 +1,490 @@
+{
+  "entities": {
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Documento mínimo para validação de conectividade com o Firestore na inicialização.",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "Indica disponibilidade do serviço."
+        }
+      },
+      "required": ["ok"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil privado autenticado do cliente ou barbeiro com PII isolada.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 24
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["client", "barber", "admin"]
+        },
+        "notificationsEnabled": {
+          "type": "boolean"
+        },
+        "whatsappUpdatesEnabled": {
+          "type": "boolean"
+        },
+        "privacyAcceptedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "name",
+        "phone",
+        "email",
+        "role",
+        "notificationsEnabled",
+        "whatsappUpdatesEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Registro restrito de administradores da barbearia.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "BarberAccount": {
+      "title": "BarberAccount",
+      "description": "Vínculo de conta autenticada de barbeiro para o futuro aplicativo do barbeiro.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "barberId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "barberId", "name", "active", "createdAt"]
+    },
+    "ServiceCatalogItem": {
+      "title": "ServiceCatalogItem",
+      "description": "Serviço oficial da barbearia com preço e duração autoritativos.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Cortes", "Barba", "Combos", "Acabamentos"]
+        },
+        "priceCents": {
+          "type": "integer"
+        },
+        "durationMinutes": {
+          "type": "integer"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "barberIds": {
+          "type": "array"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "priceCents",
+        "durationMinutes",
+        "active",
+        "barberIds",
+        "updatedAt"
+      ]
+    },
+    "BarberDirectoryProfile": {
+      "title": "BarberDirectoryProfile",
+      "description": "Perfil público de trabalho e dados Pix comerciais de cada barbeiro.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "isAvailable": {
+          "type": "boolean"
+        },
+        "workingDays": {
+          "type": "array"
+        },
+        "serviceIds": {
+          "type": "array"
+        },
+        "pixDetails": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "isAvailable",
+        "workingDays",
+        "serviceIds",
+        "pixDetails",
+        "updatedAt"
+      ]
+    },
+    "AppointmentRecord": {
+      "title": "AppointmentRecord",
+      "description": "Agendamento compartilhado entre o aplicativo do cliente e o aplicativo do barbeiro.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookingCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 20
+        },
+        "shopId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "clientId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "clientName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "clientPhone": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 24
+        },
+        "clientEmail": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "serviceId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "serviceName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "serviceDurationMinutes": {
+          "type": "integer"
+        },
+        "priceCents": {
+          "type": "integer"
+        },
+        "barberId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "barberName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "anyBarberRequested": {
+          "type": "boolean"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startTime": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "endTime": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "slotLockId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["pix", "cartao_credito", "cartao_debito", "dinheiro"]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Pendente",
+            "Confirmado",
+            "Concluído",
+            "Cancelado",
+            "Reagendamento solicitado"
+          ]
+        },
+        "rescheduleRequest": {
+          "type": "object"
+        },
+        "changeHistory": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "bookingCode",
+        "shopId",
+        "clientId",
+        "clientName",
+        "clientPhone",
+        "serviceId",
+        "serviceName",
+        "serviceDurationMinutes",
+        "priceCents",
+        "barberId",
+        "barberName",
+        "anyBarberRequested",
+        "date",
+        "startTime",
+        "endTime",
+        "slotLockId",
+        "paymentMethod",
+        "status",
+        "changeHistory",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AvailabilitySlotLock": {
+      "title": "AvailabilitySlotLock",
+      "description": "Índice de horários ocupados sem PII para consulta pública autenticada e trava atômica contra agendamentos duplicados.",
+      "type": "object",
+      "properties": {
+        "shopId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "barberId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "startTime": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "endTime": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "appointmentId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "clientId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["booking", "barber_block"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "shopId",
+        "barberId",
+        "date",
+        "startTime",
+        "endTime",
+        "appointmentId",
+        "clientId",
+        "kind",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/test/{docId}": {
+      "schema": {
+        "$ref": "#/entities/TestConnection"
+      },
+      "description": "Verificação de conexão com o Firestore."
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Perfis privados de clientes autenticados com PII isolada."
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/AdminRole"
+      },
+      "description": "Registro de administradores da barbearia."
+    },
+    "/barberAccounts/{barberUid}": {
+      "schema": {
+        "$ref": "#/entities/BarberAccount"
+      },
+      "description": "Contas de barbeiros autorizadas para o aplicativo do barbeiro."
+    },
+    "/services/{serviceId}": {
+      "schema": {
+        "$ref": "#/entities/ServiceCatalogItem"
+      },
+      "description": "Catálogo oficial de serviços, preços e durações."
+    },
+    "/barbers/{barberId}": {
+      "schema": {
+        "$ref": "#/entities/BarberDirectoryProfile"
+      },
+      "description": "Diretório público de profissionais e Pix comercial."
+    },
+    "/appointments/{appointmentId}": {
+      "schema": {
+        "$ref": "#/entities/AppointmentRecord"
+      },
+      "description": "Agendamentos compartilhados entre o App do Cliente e o futuro App do Barbeiro."
+    },
+    "/availabilitySlots/{slotId}": {
+      "schema": {
+        "$ref": "#/entities/AvailabilitySlotLock"
+      },
+      "description": "Trava atômica e índice sem PII de horários ocupados."
+    }
+  }
+}

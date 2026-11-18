@@ -1,0 +1,6 @@
+{
+  "name": "Black Orange Barber Shop",
+  "description": "Aplicativo oficial para clientes da Black Orange Barber Shop: conheça serviços, profissionais, simulação virtual de cortes e agende seu horário.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
