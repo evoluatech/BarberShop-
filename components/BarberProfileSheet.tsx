@@ -168,7 +168,7 @@ export function BarberProfileSheet({
 
           {/* Horários disponíveis */}
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="font-display text-base font-semibold text-white">
                 Próximos horários ({nextOpenDay?.weekdayShort}, {nextOpenDay?.dayNumber}
                 /{nextOpenDay?.monthShort})
@@ -241,7 +241,7 @@ export function BarberProfileSheet({
                       onClose();
                       onSelectService(service);
                     }}
-                    className="text-left text-sm font-medium text-white hover:text-[#F7931E] transition-colors"
+                    className="min-w-0 text-left text-sm font-medium text-white hover:text-[#F7931E] transition-colors"
                   >
                     {service.name}
                   </button>

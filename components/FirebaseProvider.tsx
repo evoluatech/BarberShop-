@@ -110,10 +110,16 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
   const [firestoreProfile, setFirestoreProfile] = useState<ClientProfile | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const lastSyncedApiUidRef = useRef<string | null>(null);
+  const syncedUidRef = useRef<string | null>(null);
   const inFlightSyncRef = useRef<{uid: string; promise: Promise<void>} | null>(null);
 
   const syncVerifiedUserState = useCallback(async (verifiedUser: User) => {
     if (!verifiedUser.emailVerified) return;
+
+    if (syncedUidRef.current && syncedUidRef.current !== verifiedUser.uid) {
+      setFirestoreProfile(null);
+      setCatalogSeeded(false);
+    }
 
     const existing = inFlightSyncRef.current;
     if (existing && existing.uid === verifiedUser.uid) {
@@ -142,6 +148,7 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
 
       try {
         const synced = await syncUserProfileWithFirestore(verifiedUser);
+        syncedUidRef.current = verifiedUser.uid;
         setFirestoreProfile(synced);
       } catch {
         // Ignore passive profile sync failures when offline
@@ -183,10 +190,15 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
 
     testFirestoreConnection();
     const unsub = onAuthStateChanged(activeAuth, async (nextUser) => {
+      if (nextUser?.uid !== syncedUidRef.current) {
+        setFirestoreProfile(null);
+        setCatalogSeeded(false);
+      }
       setUser(nextUser);
       if (nextUser && nextUser.emailVerified) {
         await syncVerifiedUserState(nextUser);
       } else {
+        syncedUidRef.current = null;
         setFirestoreProfile(null);
         setCatalogSeeded(false);
         if (lastSyncedApiUidRef.current !== null) {
@@ -292,6 +304,7 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
 
   const signOutUser = useCallback(async () => {
     lastSyncedApiUidRef.current = null;
+    syncedUidRef.current = null;
     inFlightSyncRef.current = null;
     await clearApiUserSession().catch(() => undefined);
     if (isFirebaseSyncEnabled && auth) {

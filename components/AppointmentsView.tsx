@@ -530,7 +530,7 @@ export function AppointmentsView({
             }
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-4">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 sm:p-6 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <h3 className="font-display text-lg font-bold text-white">
                 Cancelar agendamento?
@@ -599,7 +599,7 @@ export function AppointmentsView({
             }
           }}
         >
-          <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-4">
+          <div className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 sm:p-6 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-display text-lg font-bold text-white">

@@ -91,21 +91,21 @@ export async function POST(req: NextRequest) {
     if (cleanName.length < 2) {
       return NextResponse.json(
         {error: 'Por favor, informe seu nome completo.'},
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
     if (!isValidPhoneBR(cleanPhone)) {
       return NextResponse.json(
         {error: 'Por favor, informe um telefone válido com DDD.'},
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
     if (cleanEmail && !isValidEmailOptional(cleanEmail)) {
       return NextResponse.json(
         {error: 'O e-mail informado não parece válido.'},
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 

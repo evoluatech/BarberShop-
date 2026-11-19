@@ -368,8 +368,9 @@ export function BookingFlowView({
         <div className="flex items-center gap-3">
           <button
             type="button"
+            disabled={submitting}
             onClick={() => (step > 1 ? setStep(step - 1) : onCancelFlow())}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] text-white hover:border-[#F7931E]/60 transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] text-white hover:border-[#F7931E]/60 disabled:opacity-50 transition-colors"
             aria-label="Voltar etapa"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -398,7 +399,7 @@ export function BookingFlowView({
             <button
               key={s.number}
               type="button"
-              disabled={s.number > step}
+              disabled={s.number > step || submitting}
               onClick={() => {
                 if (s.number < step) setStep(s.number);
               }}

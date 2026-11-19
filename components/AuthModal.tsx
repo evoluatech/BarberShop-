@@ -140,7 +140,7 @@ export function AuthModal() {
         if (e.target === e.currentTarget && !busy) handleCloseModal();
       }}
     >
-      <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-5 shadow-2xl">
+      <div className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 sm:p-6 space-y-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <h2

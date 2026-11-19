@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         error: 'Token de autenticação Firebase ausente no cabeçalho Authorization.',
         code: 'AUTH_TOKEN_MISSING',
       },
-      {status: 401}
+      {status: 401, headers: {'Cache-Control': 'no-store, no-cache, must-revalidate'}}
     );
   }
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json(
       {error: 'Corpo JSON inválido.', code: 'INVALID_BODY'},
-      {status: 400}
+      {status: 400, headers: {'Cache-Control': 'no-store, no-cache, must-revalidate'}}
     );
   }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
           'Escopo de login inválido para o aplicativo do cliente. Sessões de barbeiro são isoladas.',
         code: 'CROSS_SYSTEM_FORBIDDEN',
       },
-      {status: 403}
+      {status: 403, headers: {'Cache-Control': 'no-store, no-cache, must-revalidate'}}
     );
   }
 
@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
   if (!verified.ok) {
     return NextResponse.json(
       {error: verified.error, code: verified.code},
-      {status: verified.status}
+      {
+        status: verified.status,
+        headers: {'Cache-Control': 'no-store, no-cache, must-revalidate'},
+      }
     );
   }
 

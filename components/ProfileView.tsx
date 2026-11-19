@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertCircle,
   Bell,
   Building2,
   Camera,
@@ -15,13 +16,18 @@ import {
   User,
   Users,
 } from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useFirebaseAuth} from '@/components/FirebaseProvider';
 import {PWAInstallButton} from '@/components/PWAControls';
 import {useCameraPermission} from '@/hooks/useCameraPermission';
 import {BARBERSHOP_INFO} from '@/lib/data/seed';
 import {ClientProfile} from '@/lib/types/domain';
-import {buildWhatsAppLink, formatPhoneBR} from '@/lib/utils/formatters';
+import {
+  buildWhatsAppLink,
+  formatPhoneBR,
+  isValidEmailOptional,
+  isValidPhoneBR,
+} from '@/lib/utils/formatters';
 import {sanitizeTextField} from '@/lib/utils/security';
 
 interface ProfileViewProps {
@@ -51,6 +57,16 @@ export function ProfileView({
     profile.whatsappUpdatesEnabled
   );
   const [savedNotice, setSavedNotice] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const savedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current !== null) {
+        window.clearTimeout(savedTimerRef.current);
+      }
+    };
+  }, []);
 
   const {preference: cameraPref, allowCamera, denyCamera} = useCameraPermission();
   const [cameraMsg, setCameraMsg] = useState<{
@@ -64,9 +80,24 @@ export function ProfileView({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const cleanName = sanitizeTextField(name, 80);
     const cleanPhone = sanitizeTextField(phone, 20);
     const cleanEmail = sanitizeTextField(email, 120);
+
+    if (cleanName.length < 2) {
+      setFormError('Informe seu nome completo com pelo menos 2 caracteres.');
+      return;
+    }
+    if (cleanPhone && !isValidPhoneBR(cleanPhone)) {
+      setFormError('Informe um telefone com DDD válido (ex.: (11) 99999-9999).');
+      return;
+    }
+    if (cleanEmail && !isValidEmailOptional(cleanEmail)) {
+      setFormError('O endereço de e-mail informado não parece válido.');
+      return;
+    }
+
     setName(cleanName);
     setPhone(cleanPhone);
     setEmail(cleanEmail);
@@ -79,7 +110,13 @@ export function ProfileView({
       whatsappUpdatesEnabled,
     });
     setSavedNotice(true);
-    window.setTimeout(() => setSavedNotice(false), 2400);
+    if (savedTimerRef.current !== null) {
+      window.clearTimeout(savedTimerRef.current);
+    }
+    savedTimerRef.current = window.setTimeout(() => {
+      setSavedNotice(false);
+      savedTimerRef.current = null;
+    }, 2400);
   };
 
   const whatsappUrl = buildWhatsAppLink(
@@ -267,6 +304,16 @@ export function ProfileView({
             />
           </label>
         </div>
+
+        {formError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200 flex items-start gap-2"
+          >
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+            <span>{formError}</span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <button

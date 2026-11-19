@@ -20,7 +20,7 @@ const VALID_APPOINTMENT_STATUSES: ReadonlySet<AppointmentStatus> = new Set([
   'Reagendamento solicitado',
 ]);
 
-const SAFE_ID_REGEX = /^[a-zA-Z0-9_-]{2,80}$/;
+const SAFE_ID_REGEX = /^[a-zA-Z0-9_-]{2,128}$/;
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_HM_REGEX = /^\d{2}:\d{2}$/;
 
@@ -114,6 +114,7 @@ export function sanitizeAppointmentsList(raw: unknown): Appointment[] {
 
     if (
       !isSafeEntityId(a.id) ||
+      !isSafeEntityId(a.clientId) ||
       typeof a.bookingCode !== 'string' ||
       typeof a.date !== 'string' ||
       !ISO_DATE_REGEX.test(a.date) ||
@@ -147,7 +148,7 @@ export function sanitizeAppointmentsList(raw: unknown): Appointment[] {
       id: a.id,
       bookingCode: sanitizeTextField(a.bookingCode, 20),
       shopId: isSafeEntityId(a.shopId) ? a.shopId : 'black-orange-barber',
-      clientId: isSafeEntityId(a.clientId) ? a.clientId : 'client-demo',
+      clientId: a.clientId,
       clientName: sanitizeTextField(a.clientName, 80) || 'Cliente',
       clientPhone: sanitizeTextField(a.clientPhone, 24),
       clientEmail:

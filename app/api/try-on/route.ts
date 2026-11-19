@@ -361,20 +361,39 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       hairColorHex?: string;
     };
 
+    const VALID_COMPATIBILITY_LABELS = new Set<
+      VirtualTryOnAnalysis['compatibilityLabel']
+    >([
+      'Alta compatibilidade',
+      'Boa compatibilidade',
+      'Compatibilidade adaptável',
+      'Baixa compatibilidade',
+    ]);
+    const VALID_VERDICTS = new Set<VisagismVerdict>([
+      'Altamente recomendado',
+      'Recomendado com adaptações',
+      'Exige crescimento prévio',
+      'Risco estético — avalie alternativas',
+    ]);
+
     const centerX = clamp(parsed.centerX, 0.25, 0.75, 0.5);
     const widthRatio = clamp(parsed.widthRatio, 0.24, 0.74, 0.44);
     const halfW = widthRatio / 2;
+    const topY = clamp(parsed.topY, 0.03, 0.38, 0.14);
+    const hairlineY = clamp(parsed.hairlineY, topY + 0.04, 0.5, Math.max(0.24, topY + 0.08));
+    const chinY = clamp(parsed.chinY, Math.max(0.48, hairlineY + 0.24), 0.94, 0.72);
+    const earY = clamp(parsed.earY, hairlineY + 0.04, chinY - 0.08, 0.47);
 
     const faceAlignment: FaceAlignmentMetrics = {
       centerX,
-      topY: clamp(parsed.topY, 0.03, 0.38, 0.14),
-      hairlineY: clamp(parsed.hairlineY, 0.1, 0.48, 0.24),
+      topY,
+      hairlineY,
       templeLeftX: clamp(parsed.templeLeftX, 0.1, centerX - 0.05, centerX - halfW),
       templeRightX: clamp(parsed.templeRightX, centerX + 0.05, 0.9, centerX + halfW),
-      earY: clamp(parsed.earY, 0.28, 0.68, 0.47),
+      earY,
       jawLeftX: clamp(parsed.jawLeftX, 0.14, centerX - 0.04, centerX - halfW * 0.88),
       jawRightX: clamp(parsed.jawRightX, centerX + 0.04, 0.86, centerX + halfW * 0.88),
-      chinY: clamp(parsed.chinY, 0.48, 0.94, 0.72),
+      chinY,
       widthRatio,
       hairColorHex: sanitizeHexColor(parsed.hairColorHex),
     };
@@ -385,15 +404,37 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       ? (parsed.betterAlternativeStyleId as VirtualHairstyleId)
       : undefined;
 
+    const safeFaceShape =
+      parsed.faceShape && VALID_FACE_SHAPES.has(parsed.faceShape)
+        ? parsed.faceShape
+        : 'Oval';
+    const safeHairType =
+      parsed.detectedHairType && VALID_HAIR_TYPES.has(parsed.detectedHairType)
+        ? parsed.detectedHairType
+        : 'Ondulado';
+    const safeHairLength =
+      parsed.detectedHairLength && VALID_HAIR_LENGTHS.has(parsed.detectedHairLength)
+        ? parsed.detectedHairLength
+        : 'Médio';
+    const safeCompatibilityLabel =
+      parsed.compatibilityLabel &&
+      VALID_COMPATIBILITY_LABELS.has(parsed.compatibilityLabel)
+        ? parsed.compatibilityLabel
+        : 'Boa compatibilidade';
+    const safeVerdict =
+      parsed.verdictStatus && VALID_VERDICTS.has(parsed.verdictStatus)
+        ? parsed.verdictStatus
+        : 'Recomendado com adaptações';
+
     const analysis: VirtualTryOnAnalysis = {
       imageQualityOk: parsed.imageQualityOk !== false,
       imageQualityMessage: parsed.imageQualityMessage || undefined,
-      faceShape: parsed.faceShape || 'Oval',
+      faceShape: safeFaceShape,
       cranialGeometry:
         parsed.cranialGeometry ||
         'Geometria craniana avaliada pela visão computacional.',
-      detectedHairType: parsed.detectedHairType || 'Ondulado',
-      detectedHairLength: parsed.detectedHairLength || 'Médio',
+      detectedHairType: safeHairType,
+      detectedHairLength: safeHairLength,
       hairlineObservation:
         parsed.hairlineObservation || 'Linha frontal analisada na foto.',
       apparentVolume: parsed.apparentVolume || 'Volume avaliado pela textura visível.',
@@ -401,7 +442,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       visualTexture: parsed.visualTexture || 'Textura identificada na captura.',
       facialProportions: parsed.facialProportions || 'Proporções faciais medidas.',
       beardObservation: parsed.beardObservation || 'Contorno facial verificado.',
-      compatibilityLabel: parsed.compatibilityLabel || 'Boa compatibilidade',
+      compatibilityLabel: safeCompatibilityLabel,
       compatibilitySummary:
         parsed.compatibilitySummary || 'Análise visual concluída com sucesso.',
       howItWillLookOnYou:
@@ -416,7 +457,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         headShapeFitScore: clampInt(parsed.headShapeFitScore, 0, 100, 80),
         hairTextureFitScore: clampInt(parsed.hairTextureFitScore, 0, 100, 78),
         lengthSufficiencyScore: clampInt(parsed.lengthSufficiencyScore, 0, 100, 75),
-        verdictStatus: parsed.verdictStatus || 'Recomendado com adaptações',
+        verdictStatus: safeVerdict,
         riskWarning:
           parsed.riskWarning && parsed.riskWarning.trim().length > 0
             ? parsed.riskWarning.trim()

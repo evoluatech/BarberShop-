@@ -147,9 +147,16 @@ export function BarberClientApp() {
   const [resolvedAppointmentsUid, setResolvedAppointmentsUid] = useState<string | null>(
     null
   );
+  const visibleAppointments = activeUid
+    ? appointments.filter((a) => a.clientId === activeUid)
+    : [];
   const loadingAppointments =
     !authReady ||
-    Boolean(activeUid && resolvedAppointmentsUid !== activeUid && appointments.length === 0);
+    Boolean(
+      activeUid &&
+        resolvedAppointmentsUid !== activeUid &&
+        visibleAppointments.length === 0
+    );
 
   // Detail sheets & modals
   const [detailService, setDetailService] = useState<Service | null>(null);
@@ -512,19 +519,19 @@ export function BarberClientApp() {
       <div className="min-h-screen w-full max-w-full flex flex-col bg-[#111111] text-white overflow-x-clip">
         {/* Top Bar — Mobile compact & Desktop 3-Zone Contract */}
         <header className="sticky top-0 z-30 w-full border-b border-[#2B2B2B] bg-[#111111]/95 backdrop-blur-md">
-          <div className="mx-auto w-full max-w-6xl min-w-0 px-3 sm:px-6 h-[54px] md:h-16 flex items-center justify-between gap-2 sm:gap-4 md:gap-8">
+          <div className="mx-auto w-full max-w-6xl min-w-0 px-3 sm:px-6 h-[54px] md:h-16 flex items-center justify-between gap-2 sm:gap-4 lg:gap-4 xl:gap-6">
             {/* Zone 1: Brand wordmark */}
             <button
               type="button"
               onClick={() => navigateTo('inicio')}
-              className="min-w-0 shrink text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F7931E] rounded-lg"
+              className="shrink-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F7931E] rounded-lg"
             >
               <BrandLogo size="sm" showWordmark />
             </button>
 
             {/* Zone 2: Desktop single-line text nav links */}
             <nav
-              className="hidden md:flex items-center gap-6 text-sm font-medium text-[#E5E5E5]/75"
+              className="hidden lg:flex items-center gap-3.5 xl:gap-6 text-[13px] xl:text-sm font-medium text-[#E5E5E5]/75 min-w-0"
               aria-label="Navegação principal"
             >
               <button
@@ -601,7 +608,7 @@ export function BarberClientApp() {
                 <button
                   type="button"
                   onClick={openAuthModal}
-                  className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-2.5 sm:px-3 py-2 text-xs md:text-sm font-medium text-white transition-colors whitespace-nowrap shrink-0"
+                  className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-2 min-[360px]:px-2.5 sm:px-3 py-2 text-[11px] min-[360px]:text-xs md:text-sm font-medium text-white transition-colors whitespace-nowrap shrink-0"
                 >
                   <LogIn className="h-3.5 w-3.5 text-[#F7931E]" />
                   <span>Entrar</span>
@@ -612,7 +619,7 @@ export function BarberClientApp() {
                   type="button"
                   onClick={() => navigateTo('perfil')}
                   aria-label="Conta conectada"
-                  className="hidden lg:inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-3 py-2 text-xs font-medium text-[#E5E5E5] transition-colors whitespace-nowrap shrink-0 max-w-[140px]"
+                  className="hidden lg:inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-3 py-2 text-xs font-medium text-[#E5E5E5] transition-colors whitespace-nowrap shrink-0 max-w-[110px] xl:max-w-[140px]"
                 >
                   <User className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                   <span className="truncate">{activeProfile.name.split(' ')[0]}</span>
@@ -621,7 +628,7 @@ export function BarberClientApp() {
               <button
                 type="button"
                 onClick={() => startBooking()}
-                className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-2.5 sm:px-4 md:px-5 py-2 text-xs md:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
+                className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-2 min-[360px]:px-2.5 sm:px-4 lg:px-5 py-2 text-[11px] min-[360px]:text-xs md:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
               >
                 Agendar horário
               </button>
@@ -630,7 +637,7 @@ export function BarberClientApp() {
         </header>
 
         {/* Main Content Canvas */}
-        <main className="flex-1 mx-auto w-full max-w-6xl min-w-0 px-3 sm:px-6 pt-4 sm:pt-8 pb-24 md:pb-12 overflow-x-clip">
+        <main className="flex-1 mx-auto w-full max-w-6xl min-w-0 px-3 sm:px-6 pt-4 sm:pt-8 pb-24 lg:pb-12 overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${route}-${bookingSeed.nonce}`}
@@ -692,7 +699,7 @@ export function BarberClientApp() {
 
               {route === 'confirmacao' &&
                 confirmedAppointment &&
-                (!activeUid || confirmedAppointment.clientId === activeUid) && (
+                Boolean(activeUid && confirmedAppointment.clientId === activeUid) && (
                   <BookingConfirmationView
                     appointment={confirmedAppointment}
                     onOpenMap={() => setMapOpen(true)}
@@ -722,10 +729,11 @@ export function BarberClientApp() {
               {(route === 'horarios' ||
                 (route === 'confirmacao' &&
                   (!confirmedAppointment ||
-                    (activeUid && confirmedAppointment.clientId !== activeUid)))) && (
+                    !activeUid ||
+                    confirmedAppointment.clientId !== activeUid))) && (
                 <AppointmentsView
                   key={pendingAppointmentAction?.nonce ?? 'default'}
-                  appointments={appointments}
+                  appointments={visibleAppointments}
                   loading={loadingAppointments}
                   initialActionTarget={pendingAppointmentAction}
                   onClearInitialAction={() => setPendingAppointmentAction(null)}
@@ -750,7 +758,7 @@ export function BarberClientApp() {
         </main>
 
         {/* Quiet Footer */}
-        <footer className="hidden md:block border-t border-[#2B2B2B] bg-[#111111]">
+        <footer className="hidden lg:block border-t border-[#2B2B2B] bg-[#111111]">
           <div className="mx-auto max-w-6xl px-6 py-6 flex flex-wrap items-center justify-between gap-4 text-xs text-[#E5E5E5]/60">
             <p>
               © {new Date().getFullYear()} {BARBERSHOP_INFO.name} ·{' '}
@@ -778,7 +786,7 @@ export function BarberClientApp() {
 
         {/* Mobile Bottom Navigation Bar — 5 items requested */}
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 w-full max-w-full overflow-x-clip bg-[#111111]/95 backdrop-blur-md border-t border-[#2B2B2B] pb-safe"
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 w-full max-w-full overflow-x-clip bg-[#111111]/95 backdrop-blur-md border-t border-[#2B2B2B] pb-safe"
           aria-label="Navegação inferior do aplicativo"
         >
           <div className="grid grid-cols-5 items-center h-[60px] w-full">

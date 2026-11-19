@@ -33,6 +33,7 @@ import {
 } from '@/lib/types/domain';
 import {
   addMinutesToTime,
+  isValidISODate,
   parseISODateLocal,
   timeToMinutes,
 } from '@/lib/utils/formatters';
@@ -40,6 +41,12 @@ import {sanitizeTextField} from '@/lib/utils/security';
 
 const ADMIN_BOOTSTRAP_EMAIL = 'evoluatechbr@gmail.com';
 const SAFE_ID_REGEX = /^[a-zA-Z0-9_-]{2,128}$/;
+const VALID_PAYMENT_METHODS: ReadonlySet<PaymentMethod> = new Set([
+  'pix',
+  'cartao_credito',
+  'cartao_debito',
+  'dinheiro',
+]);
 
 function assertSafeId(value: string, fallback: string): string {
   const cleaned = sanitizeTextField(value, 128);
@@ -99,43 +106,54 @@ export async function ensureAdminAndCatalogSeeded(user: User): Promise<void> {
 
   // Idempotently ensure authoritative services & barbers catalog exists in Firestore
   try {
-    const existingServicesSnap = await getDocs(query(collection(db, 'services'), limit(1)));
-    const existingBarbersSnap = await getDocs(query(collection(db, 'barbers'), limit(1)));
-    if (!existingServicesSnap.empty && !existingBarbersSnap.empty) {
+    const existingServicesSnap = await getDocs(collection(db, 'services'));
+    const existingBarbersSnap = await getDocs(collection(db, 'barbers'));
+    if (
+      existingServicesSnap.size >= SERVICES.length &&
+      existingBarbersSnap.size >= BARBERS.length
+    ) {
       return;
     }
 
     const batch = writeBatch(db);
     for (const svc of SERVICES) {
-      batch.set(doc(db, 'services', svc.id), {
-        id: svc.id,
-        name: sanitizeTextField(svc.name, 100),
-        category: svc.category,
-        priceCents: Math.round(svc.priceCents),
-        durationMinutes: Math.round(svc.durationMinutes),
-        active: true,
-        barberIds: svc.barberIds.slice(0, 20),
-        updatedAt: serverTimestamp(),
-      });
+      batch.set(
+        doc(db, 'services', svc.id),
+        {
+          id: svc.id,
+          name: sanitizeTextField(svc.name, 100),
+          category: svc.category,
+          priceCents: Math.round(svc.priceCents),
+          durationMinutes: Math.round(svc.durationMinutes),
+          active: true,
+          barberIds: svc.barberIds.slice(0, 20),
+          updatedAt: serverTimestamp(),
+        },
+        {merge: true}
+      );
     }
 
     for (const barber of BARBERS) {
-      batch.set(doc(db, 'barbers', barber.id), {
-        id: barber.id,
-        name: sanitizeTextField(barber.name, 80),
-        role: sanitizeTextField(barber.role, 100),
-        isAvailable: barber.isAvailable,
-        workingDays: barber.workingDays.slice(0, 7),
-        serviceIds: barber.serviceIds.slice(0, 30),
-        pixDetails: {
-          pixKey: sanitizeTextField(barber.pixDetails.pixKey, 140),
-          pixKeyType: barber.pixDetails.pixKeyType,
-          holderName: sanitizeTextField(barber.pixDetails.holderName, 100),
-          bankName: sanitizeTextField(barber.pixDetails.bankName, 60),
-          city: sanitizeTextField(barber.pixDetails.city, 60),
+      batch.set(
+        doc(db, 'barbers', barber.id),
+        {
+          id: barber.id,
+          name: sanitizeTextField(barber.name, 80),
+          role: sanitizeTextField(barber.role, 100),
+          isAvailable: barber.isAvailable,
+          workingDays: barber.workingDays.slice(0, 7),
+          serviceIds: barber.serviceIds.slice(0, 30),
+          pixDetails: {
+            pixKey: sanitizeTextField(barber.pixDetails.pixKey, 140),
+            pixKeyType: barber.pixDetails.pixKeyType,
+            holderName: sanitizeTextField(barber.pixDetails.holderName, 100),
+            bankName: sanitizeTextField(barber.pixDetails.bankName, 60),
+            city: sanitizeTextField(barber.pixDetails.city, 60),
+          },
+          updatedAt: serverTimestamp(),
         },
-        updatedAt: serverTimestamp(),
-      });
+        {merge: true}
+      );
     }
 
     await batch.commit();
@@ -229,10 +247,16 @@ export async function syncUserProfileWithFirestore(
   };
 
   if (overrides) {
+    const resolvedEmail =
+      nextProfile.email.length >= 3
+        ? nextProfile.email
+        : safeEmail.length >= 3
+          ? safeEmail
+          : 'cliente@barbershop.app';
     const updatePayload: Record<string, unknown> = {
       name: nextProfile.name.length >= 2 ? nextProfile.name : 'Cliente Barber',
       phone: nextProfile.phone,
-      email: nextProfile.email.length >= 3 ? nextProfile.email : safeEmail,
+      email: resolvedEmail,
       notificationsEnabled: nextProfile.notificationsEnabled,
       whatsappUpdatesEnabled: nextProfile.whatsappUpdatesEnabled,
       updatedAt: serverTimestamp(),
@@ -492,6 +516,28 @@ export async function createFirestoreAppointment(input: {
     };
   }
 
+  if (!isValidISODate(input.date) || !/^\d{2}:\d{2}$/.test(input.startTime)) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Data ou horário inválido para confirmação do agendamento.',
+    };
+  }
+
+  const safePaymentMethod: PaymentMethod = VALID_PAYMENT_METHODS.has(input.paymentMethod)
+    ? input.paymentMethod
+    : 'pix';
+
+  const cleanName = sanitizeTextField(input.clientName, 80);
+  const cleanPhone = sanitizeTextField(input.clientPhone, 24);
+  if (cleanName.length < 2 || cleanPhone.length < 8) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Informe nome completo e telefone válido antes de concluir a reserva.',
+    };
+  }
+
   // Check authoritative service document in Firestore (zero-trust price & duration)
   const localService = SERVICES.find((s) => s.id === input.serviceId);
   if (!localService) {
@@ -575,8 +621,6 @@ export async function createFirestoreAppointment(input: {
     newStatus: 'Confirmado',
   });
 
-  const cleanName = sanitizeTextField(input.clientName, 80);
-  const cleanPhone = sanitizeTextField(input.clientPhone, 24);
   const cleanEmail = sanitizeTextField(input.clientEmail, 120);
   const cleanNotes = sanitizeTextField(input.notes, 400);
 
@@ -598,7 +642,7 @@ export async function createFirestoreAppointment(input: {
     startTime: input.startTime,
     endTime,
     slotLockId,
-    paymentMethod: input.paymentMethod,
+    paymentMethod: safePaymentMethod,
     status: 'Confirmado',
     changeHistory: [historyEntry],
     createdAt: serverTimestamp(),
@@ -662,7 +706,7 @@ export async function createFirestoreAppointment(input: {
     endTime,
     slotLockId,
     notes: cleanNotes || undefined,
-    paymentMethod: input.paymentMethod,
+    paymentMethod: safePaymentMethod,
     status: 'Confirmado',
     changeHistory: [historyEntry],
     createdAt: nowISO,
@@ -740,13 +784,8 @@ export async function rescheduleFirestoreAppointment(params: {
     throw new Error(FIREBASE_SYNC_PAUSED_MESSAGE);
   }
   const {appointment, preferredDate, preferredTime, reason} = params;
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) ||
-    !/^\d{2}:\d{2}$/.test(preferredTime)
-  ) {
-    throw new Error(
-      'Data ou horário inválido para solicitação de reagendamento.'
-    );
+  if (!isValidISODate(preferredDate) || !/^\d{2}:\d{2}$/.test(preferredTime)) {
+    throw new Error('Data ou horário inválido para solicitação de reagendamento.');
   }
   const nowISO = new Date().toISOString();
   const cleanReason = sanitizeTextField(reason, 300);
