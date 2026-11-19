@@ -19,7 +19,7 @@ export function BrandLogo({
   const [imgFailed, setImgFailed] = useState(false);
 
   const dimensions = {
-    sm: 'h-9 w-9 rounded-lg',
+    sm: 'h-8 w-8 sm:h-9 sm:w-9 rounded-lg',
     md: 'h-11 w-11 rounded-xl',
     lg: 'h-16 w-16 rounded-2xl',
     xl: 'h-28 w-28 rounded-2xl',
@@ -33,7 +33,7 @@ export function BrandLogo({
   }[size];
 
   return (
-    <div className={`inline-flex items-center gap-3 shrink-0 ${className}`}>
+    <div className={`inline-flex items-center gap-2 sm:gap-3 shrink-0 ${className}`}>
       <div
         className={`relative ${dimensions} overflow-hidden bg-[#141414] border border-[#2B2B2B] flex items-center justify-center shrink-0`}
       >
@@ -55,7 +55,7 @@ export function BrandLogo({
       </div>
 
       {showWordmark && (
-        <span className="font-display text-base sm:text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0">
+        <span className="font-display text-sm sm:text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0">
           Barber <span className="text-[#F7931E]">Shop</span>
         </span>
       )}

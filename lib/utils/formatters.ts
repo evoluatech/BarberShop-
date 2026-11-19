@@ -108,6 +108,22 @@ export function addMinutesToTime(timeStr: string, durationMinutes: number): stri
   return minutesToTime(timeToMinutes(timeStr) + durationMinutes);
 }
 
+export function isValidISODate(dateISO: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
+    return false;
+  }
+  const [year, month, day] = dateISO.split('-').map(Number);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+  const probe = new Date(year, month - 1, day, 12, 0, 0);
+  return (
+    probe.getFullYear() === year &&
+    probe.getMonth() === month - 1 &&
+    probe.getDate() === day
+  );
+}
+
 export function parseISODateLocal(dateISO: string): Date {
   const [year, month, day] = dateISO.split('-').map(Number);
   return new Date(year, month - 1, day, 12, 0, 0);

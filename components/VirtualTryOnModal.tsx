@@ -997,12 +997,12 @@ export function VirtualTryOnModal({
     >
       <div className="w-full sm:max-w-3xl max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-[#1C1C1C] border border-[#2B2B2B] overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2B2B2B]">
-          <div className="flex items-center gap-2.5">
-            <ScanFace className="h-5 w-5 text-[#F7931E]" />
+        <div className="flex items-center justify-between gap-2 px-4 py-3.5 sm:px-5 sm:py-4 border-b border-[#2B2B2B]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ScanFace className="h-5 w-5 text-[#F7931E] shrink-0" />
             <h2
               id="tryon-modal-title"
-              className="font-display text-base sm:text-lg font-bold text-white"
+              className="font-display text-sm sm:text-lg font-bold text-white leading-snug"
             >
               Face ID Contínuo & Prévia do Corte ao Vivo (IA)
             </h2>
@@ -1011,13 +1011,13 @@ export function VirtualTryOnModal({
             type="button"
             onClick={handleCloseModal}
             aria-label="Fechar análise Face ID"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#E5E5E5]/70 hover:text-white hover:bg-[#2B2B2B] transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#E5E5E5]/70 hover:text-white hover:bg-[#2B2B2B] transition-colors shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
           {!isOnline && (
             <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 flex items-start gap-2.5 text-xs text-amber-200">
               <WifiOff className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
@@ -1128,9 +1128,9 @@ export function VirtualTryOnModal({
           {stage === 'camera' && (
             <div className="space-y-4">
               <div className="rounded-2xl border border-[#2B2B2B] bg-[#111111] p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Scissors className="h-4 w-4 text-[#F7931E]" />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Scissors className="h-4 w-4 text-[#F7931E] shrink-0" />
                     <p className="text-xs sm:text-sm font-semibold text-white">
                       1. Escolha o corte ou plano para o Face ID analisar ao vivo:
                     </p>
@@ -1262,7 +1262,7 @@ export function VirtualTryOnModal({
 
                   {/* Moldura circular Face ID com prévia AR rastreada já durante a leitura */}
                   <div
-                    className="relative mx-auto w-72 h-72 sm:w-80 sm:h-80 rounded-full p-1.5 transition-all"
+                    className="relative mx-auto w-64 h-64 min-[380px]:w-72 min-[380px]:h-72 sm:w-80 sm:h-80 rounded-full p-1.5 transition-all"
                     style={{
                       background: `conic-gradient(#F7931E 0% ${
                         analyzing ? 100 : scanProgress

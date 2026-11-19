@@ -32,7 +32,10 @@ export async function middleware(req: NextRequest) {
           error: originCheck.reason || 'Requisição bloqueada pela proteção CSRF.',
           code: originCheck.code || 'CSRF_VALIDATION_FAILED',
         },
-        {status: originCheck.code === 'INVALID_CONTENT_TYPE' ? 415 : 403}
+        {
+          status: originCheck.code === 'INVALID_CONTENT_TYPE' ? 415 : 403,
+          headers: {'Cache-Control': 'no-store'},
+        }
       );
     }
 
@@ -44,7 +47,7 @@ export async function middleware(req: NextRequest) {
             'Cabeçalho de identificação do sistema ausente ou não autorizado para esta operação.',
           code: 'CROSS_SYSTEM_FORBIDDEN',
         },
-        {status: 403}
+        {status: 403, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -56,7 +59,7 @@ export async function middleware(req: NextRequest) {
           error: 'Token de proteção CSRF inválido ou expirado. Recarregue a página.',
           code: 'CSRF_VALIDATION_FAILED',
         },
-        {status: 403}
+        {status: 403, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -71,7 +74,7 @@ export async function middleware(req: NextRequest) {
               'Token de sessão inválido ou incompatível com o token CSRF deste sistema.',
             code: 'INVALID_SESSION_TOKEN',
           },
-          {status: 403}
+          {status: 403, headers: {'Cache-Control': 'no-store'}}
         );
       }
 
@@ -82,7 +85,7 @@ export async function middleware(req: NextRequest) {
               'Conflito de sessão: o token CSRF pertence a outro usuário. Atualizando sessão...',
             code: 'USER_SESSION_CONFLICT',
           },
-          {status: 409}
+          {status: 409, headers: {'Cache-Control': 'no-store'}}
         );
       }
 
@@ -100,7 +103,7 @@ export async function middleware(req: NextRequest) {
                 'Conflito entre contas conectadas em abas diferentes. Recarregue para sincronizar sua conta.',
               code: 'USER_SESSION_CONFLICT',
             },
-            {status: 409}
+            {status: 409, headers: {'Cache-Control': 'no-store'}}
           );
         }
       }
@@ -113,7 +116,7 @@ export async function middleware(req: NextRequest) {
           error: 'Divergência no token CSRF da sessão.',
           code: 'CSRF_VALIDATION_FAILED',
         },
-        {status: 403}
+        {status: 403, headers: {'Cache-Control': 'no-store'}}
       );
     }
 

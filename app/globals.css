@@ -12,6 +12,15 @@
     background-color: #111111;
     color: #ffffff;
     color-scheme: dark;
+    max-width: 100%;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+  }
+
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
   }
 
   h1,

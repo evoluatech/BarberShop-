@@ -345,11 +345,11 @@ export function AppointmentsView({
       )}
 
       {/* Segmented tabs */}
-      <div className="inline-flex rounded-xl bg-[#1C1C1C] border border-[#2B2B2B] p-1">
+      <div className="grid grid-cols-2 sm:inline-flex rounded-xl bg-[#1C1C1C] border border-[#2B2B2B] p-1 w-full sm:w-auto">
         <button
           type="button"
           onClick={() => setTab('upcoming')}
-          className={`min-h-[40px] px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+          className={`min-h-[40px] px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             tab === 'upcoming'
               ? 'bg-[#F7931E] text-[#111111] font-semibold'
               : 'text-[#E5E5E5]/75 hover:text-white'
@@ -360,7 +360,7 @@ export function AppointmentsView({
         <button
           type="button"
           onClick={() => setTab('past')}
-          className={`min-h-[40px] px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+          className={`min-h-[40px] px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             tab === 'past'
               ? 'bg-[#F7931E] text-[#111111] font-semibold'
               : 'text-[#E5E5E5]/75 hover:text-white'
@@ -485,7 +485,7 @@ export function AppointmentsView({
               </div>
 
               {apt.status !== 'Concluído' && apt.status !== 'Cancelado' && (
-                <div className="pt-3 border-t border-[#2B2B2B] flex items-center gap-2.5">
+                <div className="pt-3 border-t border-[#2B2B2B] flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
                     disabled={!isOnline}
@@ -493,7 +493,7 @@ export function AppointmentsView({
                       setActionError(null);
                       setRescheduleTarget(apt);
                     }}
-                    className="flex-1 min-h-[42px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 disabled:opacity-45 px-3 py-2 text-xs font-medium text-white transition-colors"
+                    className="flex-1 min-w-[160px] min-h-[42px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 disabled:opacity-45 px-3 py-2 text-xs font-medium text-white transition-colors"
                   >
                     <RefreshCw className="h-3.5 w-3.5 text-[#F7931E]" />
                     <span>Solicitar reagendamento</span>

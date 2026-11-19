@@ -823,7 +823,7 @@ export function BookingFlowView({
               e.preventDefault();
               handleNextFromDetails();
             }}
-            className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 space-y-5"
+            className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-5 space-y-5"
           >
             <div className="space-y-1.5">
               <label
@@ -1003,59 +1003,59 @@ export function BookingFlowView({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 sm:p-6 space-y-4">
+          <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 space-y-4">
             <div className="divide-y divide-[#2B2B2B] text-sm">
               <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2">
+                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2 shrink-0">
                   <Scissors className="h-4 w-4 text-[#F7931E]" />
                   Serviço
                 </span>
-                <span className="font-semibold text-white text-right">
+                <span className="font-semibold text-white text-right min-w-0 break-words">
                   {selectedService.name} (
                   {formatDuration(selectedService.durationMinutes)})
                 </span>
               </div>
 
               <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2">
+                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2 shrink-0">
                   <User className="h-4 w-4 text-[#F7931E]" />
                   Profissional
                 </span>
-                <span className="font-semibold text-white text-right">
+                <span className="font-semibold text-white text-right min-w-0 break-words">
                   {selectedBarberLabel}
                 </span>
               </div>
 
               <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2">
+                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2 shrink-0">
                   <Calendar className="h-4 w-4 text-[#F7931E]" />
                   Data
                 </span>
-                <span className="font-semibold text-white capitalize text-right">
+                <span className="font-semibold text-white capitalize text-right min-w-0 break-words">
                   {formatDateLongPTBR(dateISO)}
                 </span>
               </div>
 
               <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2">
+                <span className="text-[#E5E5E5]/65 inline-flex items-center gap-2 shrink-0">
                   <Clock className="h-4 w-4 text-[#F7931E]" />
                   Horário
                 </span>
-                <span className="font-mono font-bold text-white tabular-nums">
+                <span className="font-mono font-bold text-white tabular-nums shrink-0">
                   {selectedTime}
                 </span>
               </div>
 
               <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#E5E5E5]/65">Cliente</span>
-                <span className="text-white text-right">
+                <span className="text-[#E5E5E5]/65 shrink-0">Cliente</span>
+                <span className="text-white text-right min-w-0 break-words">
                   {clientName} · <span className="font-mono">{clientPhone}</span>
                 </span>
               </div>
 
               <div className="py-3 flex items-center justify-between gap-4">
-                <span className="text-[#E5E5E5]/65">Forma de pagamento</span>
-                <span className="font-semibold text-white text-right">
+                <span className="text-[#E5E5E5]/65 shrink-0">Forma de pagamento</span>
+                <span className="font-semibold text-white text-right min-w-0 break-words">
                   {formatPaymentMethodLabel(paymentMethod)}
                 </span>
               </div>
@@ -1063,7 +1063,9 @@ export function BookingFlowView({
               {notes.trim() && (
                 <div className="py-3 flex items-start justify-between gap-4">
                   <span className="text-[#E5E5E5]/65 shrink-0">Observação</span>
-                  <span className="text-white text-right">{notes}</span>
+                  <span className="text-white text-right min-w-0 break-words">
+                    {notes}
+                  </span>
                 </div>
               )}
 

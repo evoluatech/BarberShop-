@@ -28,9 +28,42 @@ function sanitizeHexColor(hex: unknown): string {
   return '#1F1A17';
 }
 
+const VALID_FACE_SHAPES = new Set<FaceShape>([
+  'Oval',
+  'Quadrado',
+  'Redondo',
+  'Diamante',
+  'Triangular',
+  'Alongado',
+]);
+const VALID_HAIR_TYPES = new Set<HairType>(['Liso', 'Ondulado', 'Cacheado', 'Crespo']);
+const VALID_HAIR_LENGTHS = new Set<HairLengthCategory>([
+  'Raspado / Muito curto',
+  'Curto',
+  'Médio',
+  'Longo',
+]);
+
 export async function POST(req: NextRequest) {
+  let body: {
+    imageBase64?: string;
+    mimeType?: string;
+    styleId?: VirtualHairstyleId;
+    mode?: 'vision' | 'manual';
+    manualFaceShape?: FaceShape;
+    manualHairType?: HairType;
+    manualHairLength?: HairLengthCategory;
+  };
   try {
-    const body = await req.json();
+    body = (await req.json()) ?? {};
+  } catch {
+    return NextResponse.json(
+      {error: 'Requisição JSON inválida para análise.'},
+      {status: 400, headers: {'Cache-Control': 'no-store'}}
+    );
+  }
+
+  try {
     const {
       imageBase64,
       mimeType,
@@ -39,15 +72,7 @@ export async function POST(req: NextRequest) {
       manualFaceShape,
       manualHairType,
       manualHairLength,
-    }: {
-      imageBase64?: string;
-      mimeType?: string;
-      styleId?: VirtualHairstyleId;
-      mode?: 'vision' | 'manual';
-      manualFaceShape?: FaceShape;
-      manualHairType?: HairType;
-      manualHairLength?: HairLengthCategory;
-    } = body ?? {};
+    } = body;
 
     const chosenStyleId: VirtualHairstyleId =
       styleId && VIRTUAL_HAIRSTYLE_PRESETS.some((p) => p.id === styleId)
@@ -55,14 +80,30 @@ export async function POST(req: NextRequest) {
         : 'corte-degrade';
 
     if (mode === 'manual' && !imageBase64) {
-      return NextResponse.json({
-        analysis: computeManualVisagism({
-          styleId: chosenStyleId,
-          faceShape: manualFaceShape || 'Oval',
-          hairType: manualHairType || 'Ondulado',
-          hairLength: manualHairLength || 'Médio',
-        }),
-      });
+      const safeFaceShape: FaceShape =
+        manualFaceShape && VALID_FACE_SHAPES.has(manualFaceShape)
+          ? manualFaceShape
+          : 'Oval';
+      const safeHairType: HairType =
+        manualHairType && VALID_HAIR_TYPES.has(manualHairType)
+          ? manualHairType
+          : 'Ondulado';
+      const safeHairLength: HairLengthCategory =
+        manualHairLength && VALID_HAIR_LENGTHS.has(manualHairLength)
+          ? manualHairLength
+          : 'Médio';
+
+      return NextResponse.json(
+        {
+          analysis: computeManualVisagism({
+            styleId: chosenStyleId,
+            faceShape: safeFaceShape,
+            hairType: safeHairType,
+            hairLength: safeHairLength,
+          }),
+        },
+        {headers: {'Cache-Control': 'no-store'}}
+      );
     }
 
     if (!imageBase64) {
@@ -71,7 +112,7 @@ export async function POST(req: NextRequest) {
           error:
             'Nenhum quadro ao vivo da câmera foi recebido. Centralize o rosto no scanner Face ID e tente novamente.',
         },
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -82,7 +123,7 @@ export async function POST(req: NextRequest) {
           error:
             'O serviço de análise por inteligência artificial não está configurado neste ambiente (chave de API ausente).',
         },
-        {status: 503}
+        {status: 503, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -100,18 +141,26 @@ export async function POST(req: NextRequest) {
     if (!allowedMimeTypes.has(resolvedMimeType)) {
       return NextResponse.json(
         {error: 'Formato de quadro de vídeo não suportado para análise.'},
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
     if (typeof imageBase64 !== 'string' || imageBase64.length > 2_800_000) {
       return NextResponse.json(
         {error: 'Quadro de vídeo excede o tamanho máximo permitido para leitura.'},
-        {status: 413}
+        {status: 413, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+    const cleanBase64 = imageBase64
+      .replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '')
+      .trim();
+    if (!cleanBase64 || cleanBase64.length < 32) {
+      return NextResponse.json(
+        {error: 'Quadro de vídeo inválido ou vazio para leitura Face ID.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
 
     const ai = new GoogleGenAI({
       apiKey,
@@ -386,7 +435,10 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       source: 'gemini_vision',
     };
 
-    return NextResponse.json({analysis});
+    return NextResponse.json(
+      {analysis},
+      {headers: {'Cache-Control': 'no-store'}}
+    );
   } catch (error) {
     console.error('Virtual try-on AI error:', error);
     return NextResponse.json(
@@ -394,7 +446,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         error:
           'Não foi possível concluir a leitura ao vivo por inteligência artificial neste momento. Verifique sua conexão, ilumine bem o rosto e tente novamente.',
       },
-      {status: 502}
+      {status: 502, headers: {'Cache-Control': 'no-store'}}
     );
   }
 }

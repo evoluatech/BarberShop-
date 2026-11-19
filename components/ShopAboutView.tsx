@@ -57,7 +57,7 @@ export function ShopAboutView({
       </div>
 
       {/* Apresentação principal */}
-      <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 sm:p-8 space-y-6">
+      <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <BrandLogo size="lg" />
@@ -109,7 +109,7 @@ export function ShopAboutView({
 
       {/* Diferenciais & Resumo de Serviços */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 space-y-4">
           <h2 className="font-display text-xl font-bold text-white">
             Nossos diferenciais
           </h2>
@@ -126,9 +126,9 @@ export function ShopAboutView({
           </ul>
         </section>
 
-        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 flex flex-col justify-between space-y-4">
+        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 flex flex-col justify-between space-y-4">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-display text-xl font-bold text-white">
                 Serviços oferecidos
               </h2>
@@ -167,7 +167,7 @@ export function ShopAboutView({
 
       {/* Horários, Endereço e Contatos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-[#F7931E]" />
             <h2 className="font-display text-xl font-bold text-white">
@@ -178,7 +178,7 @@ export function ShopAboutView({
             {BARBERSHOP_INFO.openingHours.map((day) => (
               <div
                 key={day.dayOfWeek}
-                className="py-2.5 flex items-center justify-between"
+                className="py-2.5 flex items-center justify-between gap-3"
               >
                 <span className="text-[#E5E5E5]/80">{day.label}</span>
                 <span
@@ -195,9 +195,9 @@ export function ShopAboutView({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-5">
+        <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 space-y-5 min-w-0">
           <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-[#F7931E]" />
+            <MapPin className="h-5 w-5 text-[#F7931E] shrink-0" />
             <h2 className="font-display text-xl font-bold text-white">
               Endereço e canais de atendimento
             </h2>
@@ -215,23 +215,23 @@ export function ShopAboutView({
             </p>
           </div>
 
-          <div className="space-y-2.5 text-sm text-[#E5E5E5]/85">
+          <div className="space-y-2.5 text-sm text-[#E5E5E5]/85 min-w-0">
             <div className="flex items-center gap-2.5">
-              <Phone className="h-4 w-4 text-[#F7931E]" />
+              <Phone className="h-4 w-4 text-[#F7931E] shrink-0" />
               <span className="font-mono tabular-nums">
                 {BARBERSHOP_INFO.contact.phone}
               </span>
             </div>
-            <div className="flex items-center gap-2.5">
-              <Mail className="h-4 w-4 text-[#F7931E]" />
-              <span>{BARBERSHOP_INFO.contact.email}</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Mail className="h-4 w-4 text-[#F7931E] shrink-0" />
+              <span className="break-all">{BARBERSHOP_INFO.contact.email}</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <Instagram className="h-4 w-4 text-[#F7931E]" />
+              <Instagram className="h-4 w-4 text-[#F7931E] shrink-0" />
               <span>{BARBERSHOP_INFO.contact.instagram}</span>
             </div>
             <div className="flex items-center gap-2.5">
-              <Share2 className="h-4 w-4 text-[#F7931E]" />
+              <Share2 className="h-4 w-4 text-[#F7931E] shrink-0" />
               <span>fb.com{BARBERSHOP_INFO.contact.facebook}</span>
             </div>
           </div>

@@ -62,20 +62,20 @@ export function HomeView({
   };
 
   return (
-    <div className="space-y-12 pb-8">
+    <div className="space-y-8 sm:space-y-12 pb-8">
       {/* Opção inicial de acesso à câmera e feedback diagnóstico */}
       {(cameraPref === 'unset' || cameraFeedback) && (
         <section
           aria-label="Preferência de acesso à câmera"
-          className="rounded-2xl border border-[#F7931E]/40 bg-[#1C1C1C] p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+          className="rounded-2xl border border-[#F7931E]/40 bg-[#1C1C1C] p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
         >
-          <div className="flex items-start gap-3.5 max-w-2xl">
-            <div className="h-11 w-11 rounded-xl bg-[#111111] border border-[#2B2B2B] flex items-center justify-center shrink-0">
+          <div className="flex items-start gap-3 sm:gap-3.5 max-w-2xl min-w-0">
+            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-[#111111] border border-[#2B2B2B] flex items-center justify-center shrink-0">
               <Camera className="h-5 w-5 text-[#F7931E]" />
             </div>
-            <div className="space-y-1">
-              <h2 className="font-display text-base font-bold text-white flex items-center gap-2">
-                <span>Permitir acesso à câmera para leitura Face ID?</span>
+            <div className="space-y-1 min-w-0">
+              <h2 className="font-display text-base font-bold text-white leading-snug">
+                Permitir acesso à câmera para leitura Face ID?
               </h2>
               <p className="text-xs sm:text-sm text-[#E5E5E5]/75 leading-relaxed">
                 Com a câmera liberada, nossa IA analisa ao vivo pelo vídeo o formato da
@@ -83,22 +83,22 @@ export function HomeView({
                 — sem tirar ou salvar fotos.
               </p>
               {cameraFeedback && (
-                <p className="text-xs text-amber-300 pt-1 leading-relaxed">
+                <p className="text-xs text-amber-300 pt-1 leading-relaxed break-words">
                   {cameraFeedback.message}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="grid grid-cols-1 min-[340px]:grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
             {cameraFeedback?.isIframeBlocked && typeof window !== 'undefined' && (
               <a
                 href={window.location.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-4 py-2 text-xs sm:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap"
+                className="min-[340px]:col-span-2 sm:col-span-1 min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-4 py-2 text-xs sm:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-4 w-4 shrink-0" />
                 <span>Abrir em nova aba</span>
               </a>
             )}
@@ -106,13 +106,13 @@ export function HomeView({
               type="button"
               disabled={cameraRequesting}
               onClick={handleAllowCameraEntry}
-              className={`min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap disabled:opacity-60 ${
+              className={`min-h-[44px] inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap disabled:opacity-60 ${
                 cameraFeedback?.isIframeBlocked
                   ? 'border border-[#2B2B2B] bg-[#111111] text-white hover:border-[#F7931E]/60'
                   : 'bg-[#F7931E] hover:bg-[#D97706] text-[#111111]'
               }`}
             >
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldCheck className="h-4 w-4 shrink-0" />
               <span>
                 {cameraRequesting
                   ? 'Solicitando...'
@@ -128,7 +128,7 @@ export function HomeView({
                 setCameraFeedback(null);
                 denyCamera();
               }}
-              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#E5E5E5]/40 px-4 py-2 text-xs sm:text-sm font-medium text-[#E5E5E5] transition-colors whitespace-nowrap"
+              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#E5E5E5]/40 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-[#E5E5E5] transition-colors whitespace-nowrap"
             >
               Não permitir
             </button>
@@ -139,26 +139,26 @@ export function HomeView({
       {/* Hero Banner */}
       <section className="relative overflow-hidden rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C]">
         <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
-          <div className="lg:col-span-6 p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
+          <div className="lg:col-span-6 p-4 sm:p-8 lg:p-10 flex flex-col justify-between min-w-0">
             <div>
               <p className="text-xs font-medium text-[#F7931E]">
                 {BARBERSHOP_INFO.name} · Centro, São Paulo
               </p>
-              <h1 className="mt-3 font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white [text-wrap:balance]">
+              <h1 className="mt-2.5 sm:mt-3 font-display text-[28px] leading-[1.12] sm:text-4xl lg:text-5xl font-bold tracking-tight text-white [text-wrap:balance]">
                 Seu estilo começa aqui
               </h1>
-              <p className="mt-4 text-sm sm:text-base leading-relaxed text-[#E5E5E5]/80 max-w-xl">
+              <p className="mt-3 sm:mt-4 text-sm sm:text-base leading-relaxed text-[#E5E5E5]/80 max-w-xl">
                 Agende seu próximo corte em poucos segundos. Cortes modernos, barba com
                 toalha quente e atendimento personalizado sem filas.
               </p>
             </div>
 
-            <div className="mt-8 space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="mt-6 sm:mt-8 space-y-4">
+              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => onBookNow()}
-                  className="min-h-[48px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-6 py-3 text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
+                  className="w-full min-[360px]:w-auto min-h-[46px] sm:min-h-[48px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 sm:px-6 py-2.5 sm:py-3 text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
                 >
                   <Calendar className="h-4 w-4" />
                   <span>Agendar horário</span>
@@ -166,7 +166,7 @@ export function HomeView({
                 <button
                   type="button"
                   onClick={onOpenServices}
-                  className="min-h-[48px] inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 px-5 py-3 text-sm font-medium text-white transition-colors whitespace-nowrap shrink-0"
+                  className="w-full min-[360px]:w-auto min-h-[46px] sm:min-h-[48px] inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 px-4 sm:px-5 py-2.5 sm:py-3 text-sm font-medium text-white transition-colors whitespace-nowrap shrink-0"
                 >
                   <Scissors className="h-4 w-4 text-[#F7931E]" />
                   <span>Ver serviços</span>
@@ -174,7 +174,7 @@ export function HomeView({
                 <PWAInstallButton variant="compact" />
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#E5E5E5]/65 pt-2">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[#E5E5E5]/65 pt-1 sm:pt-2">
                 <span>Terça a sexta · 09h às 20h</span>
                 <span aria-hidden="true">·</span>
                 <span>Sábado · 08h às 18h</span>
@@ -184,7 +184,7 @@ export function HomeView({
             </div>
           </div>
 
-          <div className="relative lg:col-span-6 min-h-[240px] sm:min-h-[300px] lg:min-h-[380px] bg-[#111111]">
+          <div className="relative lg:col-span-6 min-h-[220px] sm:min-h-[300px] lg:min-h-[380px] bg-[#111111]">
             <Image
               src={BARBERSHOP_INFO.heroImageUrl}
               alt="Ambiente interno da Barber Shop"
@@ -201,23 +201,23 @@ export function HomeView({
             <button
               type="button"
               onClick={onOpenShopAbout}
-              className="absolute bottom-4 right-4 min-h-[44px] inline-flex items-center gap-2 rounded-xl bg-[#111111]/90 border border-[#2B2B2B] px-4 py-2 text-xs font-medium text-white hover:border-[#F7931E] transition-colors"
+              className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 min-h-[42px] inline-flex items-center gap-2 rounded-xl bg-[#111111]/90 border border-[#2B2B2B] px-3.5 py-2 text-xs font-medium text-white hover:border-[#F7931E] transition-colors max-w-[calc(100%-1.5rem)]"
             >
-              <span>Conhecer a barbearia</span>
-              <ArrowRight className="h-3.5 w-3.5 text-[#F7931E]" />
+              <span className="truncate">Conhecer a barbearia</span>
+              <ArrowRight className="h-3.5 w-3.5 text-[#F7931E] shrink-0" />
             </button>
           </div>
         </div>
       </section>
 
       {/* Destaque Simulação Virtual */}
-      <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 sm:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
+      <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
+          <div className="space-y-2 max-w-2xl min-w-0">
             <p className="text-xs font-medium text-[#F7931E]">
               Análise Face ID e Visagismo por IA
             </p>
-            <h2 className="font-display text-2xl font-bold text-white [text-wrap:balance]">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-white [text-wrap:balance]">
               Veja se o corte combina com você antes de cortar
             </h2>
             <p className="text-sm text-[#E5E5E5]/75 leading-relaxed">
@@ -230,9 +230,9 @@ export function HomeView({
             <button
               type="button"
               onClick={() => onOpenTryOn()}
-              className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-6 py-3 text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap"
+              className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 sm:px-6 py-3 text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap"
             >
-              <Camera className="h-4 w-4" />
+              <Camera className="h-4 w-4 shrink-0" />
               <span>Veja como fica em você</span>
             </button>
           </div>
@@ -241,9 +241,9 @@ export function HomeView({
 
       {/* Serviços mais populares */}
       <section className="space-y-5">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="font-display text-2xl font-bold text-white">
+        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-white">
               Serviços mais populares
             </h2>
             <p className="mt-1 text-sm text-[#E5E5E5]/70">
@@ -335,9 +335,9 @@ export function HomeView({
 
       {/* Profissionais em destaque */}
       <section className="space-y-5">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="font-display text-2xl font-bold text-white">
+        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-white">
               Profissionais em destaque
             </h2>
             <p className="mt-1 text-sm text-[#E5E5E5]/70">
@@ -455,7 +455,7 @@ export function HomeView({
 
       {/* Horário de funcionamento e Localização */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 space-y-4">
+        <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2.5">
             <Clock className="h-5 w-5 text-[#F7931E]" />
             <h2 className="font-display text-xl font-bold text-white">
@@ -464,23 +464,23 @@ export function HomeView({
           </div>
 
           <div className="divide-y divide-[#2B2B2B] text-sm">
-            <div className="py-2.5 flex items-center justify-between">
+            <div className="py-2.5 flex items-center justify-between gap-3">
               <span className="text-[#E5E5E5]/80">Segunda-feira</span>
               <span className="font-medium text-[#E5E5E5]/55">Fechado</span>
             </div>
-            <div className="py-2.5 flex items-center justify-between">
+            <div className="py-2.5 flex items-center justify-between gap-3">
               <span className="text-[#E5E5E5]/80">Terça a sexta-feira</span>
               <span className="font-mono font-medium text-white tabular-nums">
                 09h às 20h
               </span>
             </div>
-            <div className="py-2.5 flex items-center justify-between">
+            <div className="py-2.5 flex items-center justify-between gap-3">
               <span className="text-[#E5E5E5]/80">Sábado</span>
               <span className="font-mono font-medium text-white tabular-nums">
                 08h às 18h
               </span>
             </div>
-            <div className="py-2.5 flex items-center justify-between">
+            <div className="py-2.5 flex items-center justify-between gap-3">
               <span className="text-[#E5E5E5]/80">Domingo</span>
               <span className="font-mono font-medium text-white tabular-nums">
                 09h às 14h
@@ -489,10 +489,10 @@ export function HomeView({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-6 flex flex-col justify-between space-y-5">
-          <div className="space-y-3">
+        <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-6 flex flex-col justify-between space-y-5 min-w-0">
+          <div className="space-y-3 min-w-0">
             <div className="flex items-center gap-2.5">
-              <MapPin className="h-5 w-5 text-[#F7931E]" />
+              <MapPin className="h-5 w-5 text-[#F7931E] shrink-0" />
               <h2 className="font-display text-xl font-bold text-white">
                 Onde estamos
               </h2>
@@ -506,25 +506,25 @@ export function HomeView({
                 {BARBERSHOP_INFO.address.zipCode}
               </span>
             </p>
-            <p className="text-xs text-[#E5E5E5]/60">
+            <p className="text-xs text-[#E5E5E5]/60 break-words">
               Telefone: {BARBERSHOP_INFO.contact.phone} ·{' '}
               {BARBERSHOP_INFO.contact.email}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2.5 sm:gap-3">
             <button
               type="button"
               onClick={onOpenMap}
-              className="min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 py-2.5 text-sm font-semibold text-[#111111] transition-colors"
+              className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 py-2.5 text-sm font-semibold text-[#111111] transition-colors"
             >
-              <MapPin className="h-4 w-4" />
+              <MapPin className="h-4 w-4 shrink-0" />
               <span>Abrir localização no mapa</span>
             </button>
             <button
               type="button"
               onClick={onOpenShopAbout}
-              className="min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 px-4 py-2.5 text-sm font-medium text-white transition-colors"
+              className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 px-4 py-2.5 text-sm font-medium text-white transition-colors"
             >
               <span>Sobre a barbearia</span>
             </button>

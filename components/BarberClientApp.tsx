@@ -509,15 +509,15 @@ export function BarberClientApp() {
       <PWAServiceWorkerRegister />
       <SplashOverlay />
 
-      <div className="min-h-screen flex flex-col bg-[#111111] text-white">
+      <div className="min-h-screen w-full max-w-full flex flex-col bg-[#111111] text-white overflow-x-clip">
         {/* Top Bar — Mobile compact & Desktop 3-Zone Contract */}
-        <header className="sticky top-0 z-30 border-b border-[#2B2B2B] bg-[#111111]/95 backdrop-blur-md">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6 h-[52px] md:h-16 flex items-center justify-between gap-8">
+        <header className="sticky top-0 z-30 w-full border-b border-[#2B2B2B] bg-[#111111]/95 backdrop-blur-md">
+          <div className="mx-auto w-full max-w-6xl min-w-0 px-3 sm:px-6 h-[54px] md:h-16 flex items-center justify-between gap-2 sm:gap-4 md:gap-8">
             {/* Zone 1: Brand wordmark */}
             <button
               type="button"
               onClick={() => navigateTo('inicio')}
-              className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F7931E] rounded-lg"
+              className="min-w-0 shrink text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F7931E] rounded-lg"
             >
               <BrandLogo size="sm" showWordmark />
             </button>
@@ -596,12 +596,12 @@ export function BarberClientApp() {
             </nav>
 
             {/* Zone 3: Auth status + Primary Action CTA */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {authReady && !isVerifiedUser && (
                 <button
                   type="button"
                   onClick={openAuthModal}
-                  className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-3 py-2 text-xs md:text-sm font-medium text-white transition-colors whitespace-nowrap shrink-0"
+                  className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-2.5 sm:px-3 py-2 text-xs md:text-sm font-medium text-white transition-colors whitespace-nowrap shrink-0"
                 >
                   <LogIn className="h-3.5 w-3.5 text-[#F7931E]" />
                   <span>Entrar</span>
@@ -621,7 +621,7 @@ export function BarberClientApp() {
               <button
                 type="button"
                 onClick={() => startBooking()}
-                className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-3.5 md:px-5 py-2 text-xs md:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
+                className="min-h-[40px] md:min-h-[44px] inline-flex items-center justify-center rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-2.5 sm:px-4 md:px-5 py-2 text-xs md:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
               >
                 Agendar horário
               </button>
@@ -630,7 +630,7 @@ export function BarberClientApp() {
         </header>
 
         {/* Main Content Canvas */}
-        <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 pt-5 sm:pt-8 pb-24 md:pb-12">
+        <main className="flex-1 mx-auto w-full max-w-6xl min-w-0 px-3 sm:px-6 pt-4 sm:pt-8 pb-24 md:pb-12 overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${route}-${bookingSeed.nonce}`}
@@ -778,10 +778,10 @@ export function BarberClientApp() {
 
         {/* Mobile Bottom Navigation Bar — 5 items requested */}
         <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111111]/95 backdrop-blur-md border-t border-[#2B2B2B] pb-safe"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 w-full max-w-full overflow-x-clip bg-[#111111]/95 backdrop-blur-md border-t border-[#2B2B2B] pb-safe"
           aria-label="Navegação inferior do aplicativo"
         >
-          <div className="grid grid-cols-5 items-center h-[60px]">
+          <div className="grid grid-cols-5 items-center h-[60px] w-full">
             {bottomNavItems.map((item) => {
               const Icon = item.icon;
               const active = isNavActive(item.id);
@@ -797,7 +797,7 @@ export function BarberClientApp() {
                     }
                   }}
                   aria-current={active ? 'page' : undefined}
-                  className={`min-h-[48px] flex flex-col items-center justify-center gap-1 px-1 transition-colors ${
+                  className={`min-w-0 min-h-[48px] flex flex-col items-center justify-center gap-1 px-0.5 transition-colors ${
                     active ? 'text-[#F7931E]' : 'text-[#E5E5E5]/65 hover:text-white'
                   }`}
                 >

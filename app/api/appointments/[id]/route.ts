@@ -4,6 +4,7 @@ import {
   getAppointmentById,
   updateAppointmentStatus,
 } from '@/lib/services/barbershop-store';
+import {isValidISODate} from '@/lib/utils/formatters';
 import {isSafeEntityId, sanitizeTextField} from '@/lib/utils/security';
 
 export async function GET(req: NextRequest, context: {params: Promise<{id: string}>}) {
@@ -20,12 +21,18 @@ export async function GET(req: NextRequest, context: {params: Promise<{id: strin
 
   const {id} = await context.params;
   if (!isSafeEntityId(id)) {
-    return NextResponse.json({error: 'Agendamento inválido.'}, {status: 400});
+    return NextResponse.json(
+      {error: 'Agendamento inválido.'},
+      {status: 400, headers: {'Cache-Control': 'no-store'}}
+    );
   }
 
   const appointment = getAppointmentById(id);
   if (!appointment) {
-    return NextResponse.json({error: 'Agendamento não encontrado.'}, {status: 404});
+    return NextResponse.json(
+      {error: 'Agendamento não encontrado.'},
+      {status: 404, headers: {'Cache-Control': 'no-store'}}
+    );
   }
 
   if (appointment.clientId !== auth.uid) {
@@ -34,7 +41,7 @@ export async function GET(req: NextRequest, context: {params: Promise<{id: strin
         error: 'Acesso não autorizado a este agendamento.',
         code: 'FORBIDDEN_USER_MISMATCH',
       },
-      {status: 403}
+      {status: 403, headers: {'Cache-Control': 'no-store'}}
     );
   }
 
@@ -53,18 +60,24 @@ export async function PATCH(
     if (!auth.ok) {
       return NextResponse.json(
         {error: auth.error, code: auth.code},
-        {status: auth.status}
+        {status: auth.status, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
     const {id} = await context.params;
     if (!isSafeEntityId(id)) {
-      return NextResponse.json({error: 'Agendamento inválido.'}, {status: 400});
+      return NextResponse.json(
+        {error: 'Agendamento inválido.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
     }
 
     const existing = getAppointmentById(id);
     if (!existing) {
-      return NextResponse.json({error: 'Agendamento não encontrado.'}, {status: 404});
+      return NextResponse.json(
+        {error: 'Agendamento não encontrado.'},
+        {status: 404, headers: {'Cache-Control': 'no-store'}}
+      );
     }
 
     if (existing.clientId !== auth.uid) {
@@ -73,7 +86,7 @@ export async function PATCH(
           error: 'Você só pode alterar os seus próprios agendamentos.',
           code: 'FORBIDDEN_USER_MISMATCH',
         },
-        {status: 403}
+        {status: 403, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -86,21 +99,21 @@ export async function PATCH(
           error: 'Identificador de cliente divergente da sessão autenticada.',
           code: 'FORBIDDEN_USER_MISMATCH',
         },
-        {status: 403}
+        {status: 403, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
     if (action !== 'cancel' && action !== 'request_reschedule') {
       return NextResponse.json(
         {error: 'Ação inválida para atualização de agendamento.'},
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
     if (action === 'request_reschedule') {
       if (
         typeof preferredDate !== 'string' ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate) ||
+        !isValidISODate(preferredDate) ||
         typeof preferredTime !== 'string' ||
         !/^\d{2}:\d{2}$/.test(preferredTime)
       ) {
@@ -109,7 +122,7 @@ export async function PATCH(
             error:
               'Informe uma data (YYYY-MM-DD) e horário (HH:mm) válidos para reagendar.',
           },
-          {status: 400}
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
         );
       }
     }
@@ -123,14 +136,20 @@ export async function PATCH(
     });
 
     if (result.error) {
-      return NextResponse.json({error: result.error}, {status: result.status ?? 400});
+      return NextResponse.json(
+        {error: result.error},
+        {status: result.status ?? 400, headers: {'Cache-Control': 'no-store'}}
+      );
     }
 
-    return NextResponse.json({appointment: result.appointment});
+    return NextResponse.json(
+      {appointment: result.appointment},
+      {headers: {'Cache-Control': 'no-store'}}
+    );
   } catch {
     return NextResponse.json(
       {error: 'Erro ao atualizar o agendamento.'},
-      {status: 500}
+      {status: 500, headers: {'Cache-Control': 'no-store'}}
     );
   }
 }

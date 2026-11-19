@@ -15,6 +15,7 @@ import {
 } from '@/lib/types/domain';
 import {
   addMinutesToTime,
+  isValidISODate,
   parseISODateLocal,
   timeToMinutes,
 } from '@/lib/utils/formatters';
@@ -92,6 +93,14 @@ export function computeAvailability(params: {
   openingHoursLabel: string;
   slots: TimeSlotAvailability[];
 } {
+  if (!isValidISODate(params.date)) {
+    return {
+      isShopOpen: false,
+      closedReason: 'Data selecionada inválida.',
+      openingHoursLabel: 'Indisponível',
+      slots: [],
+    };
+  }
   const service = SERVICES.find((s) => s.id === params.serviceId) ?? SERVICES[0];
   const localDate = parseISODateLocal(params.date);
   const dayOfWeek = localDate.getDay();

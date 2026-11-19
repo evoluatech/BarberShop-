@@ -208,7 +208,7 @@ export function OfflineIndicator() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-20 md:bottom-4 left-4 z-50 inline-flex items-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#F7931E] px-3.5 py-2 text-xs font-semibold text-[#111111] shadow-lg"
+      className="fixed bottom-20 md:bottom-4 left-3 right-3 sm:left-4 sm:right-auto max-w-[calc(100vw-1.5rem)] z-50 inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#F7931E] px-3.5 py-2 text-xs font-semibold text-[#111111] shadow-lg"
     >
       <WifiOff className="h-3.5 w-3.5 shrink-0" />
       <span>Modo offline — agendamentos exigem internet</span>

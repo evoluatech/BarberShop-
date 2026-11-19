@@ -2,7 +2,11 @@ import {NextRequest, NextResponse} from 'next/server';
 import {resolveAuthenticatedClient} from '@/lib/server/firebase-auth';
 import {createAppointment, listAllAppointments} from '@/lib/services/barbershop-store';
 import {PaymentMethod} from '@/lib/types/domain';
-import {isValidEmailOptional, isValidPhoneBR} from '@/lib/utils/formatters';
+import {
+  isValidEmailOptional,
+  isValidISODate,
+  isValidPhoneBR,
+} from '@/lib/utils/formatters';
 import {isSafeEntityId, sanitizeTextField} from '@/lib/utils/security';
 
 const VALID_PAYMENT_METHODS: PaymentMethod[] = [
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
         error: 'Acesso negado: você só pode consultar os seus próprios agendamentos.',
         code: 'FORBIDDEN_USER_MISMATCH',
       },
-      {status: 403}
+      {status: 403, headers: {'Cache-Control': 'no-store'}}
     );
   }
 
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) {
       return NextResponse.json(
         {error: auth.error, code: auth.code},
-        {status: auth.status}
+        {status: auth.status, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -74,7 +78,7 @@ export async function POST(req: NextRequest) {
             'Conflito de usuário: não é permitido criar agendamento em nome de outra conta.',
           code: 'FORBIDDEN_USER_MISMATCH',
         },
-        {status: 403}
+        {status: 403, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -109,7 +113,7 @@ export async function POST(req: NextRequest) {
       !isSafeEntityId(serviceId) ||
       (barberId && barberId !== 'any' && !isSafeEntityId(barberId)) ||
       typeof date !== 'string' ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !isValidISODate(date) ||
       typeof startTime !== 'string' ||
       !/^\d{2}:\d{2}$/.test(startTime)
     ) {
@@ -118,7 +122,7 @@ export async function POST(req: NextRequest) {
           error:
             'Selecione serviço, data e horário válidos para concluir o agendamento.',
         },
-        {status: 400}
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
@@ -142,14 +146,20 @@ export async function POST(req: NextRequest) {
     });
 
     if (result.error) {
-      return NextResponse.json({error: result.error}, {status: result.status ?? 400});
+      return NextResponse.json(
+        {error: result.error},
+        {status: result.status ?? 400, headers: {'Cache-Control': 'no-store'}}
+      );
     }
 
-    return NextResponse.json({appointment: result.appointment}, {status: 201});
+    return NextResponse.json(
+      {appointment: result.appointment},
+      {status: 201, headers: {'Cache-Control': 'no-store'}}
+    );
   } catch {
     return NextResponse.json(
       {error: 'Não foi possível processar a solicitação de agendamento.'},
-      {status: 500}
+      {status: 500, headers: {'Cache-Control': 'no-store'}}
     );
   }
 }
