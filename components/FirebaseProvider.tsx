@@ -58,43 +58,63 @@ interface FirebaseContextValue {
 
 const FirebaseContext = createContext<FirebaseContextValue | null>(null);
 
-function mapFirebaseAuthError(error: unknown): Error {
+export interface AuthMappedError extends Error {
+  code?: string;
+  hostname?: string;
+}
+
+function mapFirebaseAuthError(error: unknown): AuthMappedError {
   const code =
     typeof error === 'object' && error !== null && 'code' in error
       ? String((error as {code?: unknown}).code)
       : '';
 
+  const makeError = (message: string, hostname?: string): AuthMappedError => {
+    const err = new Error(message) as AuthMappedError;
+    if (code) err.code = code;
+    if (hostname) err.hostname = hostname;
+    return err;
+  };
+
   switch (code) {
     case 'auth/popup-closed-by-user':
-      return new Error('O login com Google foi cancelado antes de concluir.');
+      return makeError('O login com Google foi cancelado antes de concluir.');
     case 'auth/popup-blocked':
-      return new Error(
+      return makeError(
         'O navegador bloqueou a janela do Google. Permita pop-ups ou abra o aplicativo em uma nova aba.'
       );
     case 'auth/operation-not-allowed':
-      return new Error(
+      return makeError(
         'O provedor de E-mail/Senha ainda não foi ativado no Console do Firebase (Authentication > Sign-in method). Use o botão "Continuar com Google / Gmail" acima ou ative E-mail/Senha no Console.'
       );
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return new Error('E-mail ou senha incorretos.');
+      return makeError('E-mail ou senha incorretos.');
     case 'auth/email-already-in-use':
-      return new Error('Este e-mail já possui cadastro. Faça login na aba Entrar.');
+      return makeError('Este e-mail já possui cadastro. Faça login na aba Entrar.');
     case 'auth/weak-password':
-      return new Error('A senha precisa ter pelo menos 6 caracteres.');
+      return makeError('A senha precisa ter pelo menos 6 caracteres.');
     case 'auth/invalid-email':
-      return new Error('O endereço de e-mail informado é inválido.');
+      return makeError('O endereço de e-mail informado é inválido.');
     case 'auth/too-many-requests':
-      return new Error(
+      return makeError(
         'Muitas tentativas seguidas. Aguarde alguns instantes antes de tentar novamente.'
       );
-    case 'auth/unauthorized-domain':
-      return new Error(
-        'Domínio ainda não autorizado no Console do Firebase. Adicione este endereço em Authentication > Settings > Authorized domains.'
+    case 'auth/unauthorized-domain': {
+      const currentHost =
+        typeof window !== 'undefined' && window.location?.hostname
+          ? window.location.hostname
+          : '';
+      return makeError(
+        currentHost
+          ? `O domínio "${currentHost}" ainda não está autorizado no Console do Firebase. Adicione-o em Authentication > Settings > Authorized domains.`
+          : 'Domínio ainda não autorizado no Console do Firebase. Adicione este endereço em Authentication > Settings > Authorized domains.',
+        currentHost || undefined
       );
+    }
     default:
-      return new Error(
+      return makeError(
         error instanceof Error
           ? error.message
           : 'Não foi possível autenticar no Firebase no momento.'

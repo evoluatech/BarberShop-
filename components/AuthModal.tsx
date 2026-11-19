@@ -2,7 +2,9 @@
 
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
+  Copy,
   KeyRound,
   Loader2,
   LogIn,
@@ -12,8 +14,8 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import {useCallback, useEffect, useState} from 'react';
-import {useFirebaseAuth} from '@/components/FirebaseProvider';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {AuthMappedError, useFirebaseAuth} from '@/components/FirebaseProvider';
 import {sanitizeTextField} from '@/lib/utils/security';
 
 export function AuthModal() {
@@ -34,11 +36,26 @@ export function AuthModal() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [unauthorizedHost, setUnauthorizedHost] = useState<string | null>(null);
+  const [copiedHost, setCopiedHost] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setPassword('');
     setError(null);
+    setGoogleError(null);
+    setUnauthorizedHost(null);
+    setCopiedHost(false);
     setNotice(null);
     setMode('login');
     closeAuthModal();
@@ -62,12 +79,22 @@ export function AuthModal() {
   const handleGoogleSignIn = async () => {
     setBusy(true);
     setError(null);
+    setGoogleError(null);
+    setUnauthorizedHost(null);
+    setCopiedHost(false);
     setNotice(null);
     try {
       await signInWithGoogle();
       setPassword('');
     } catch (err) {
-      setError(
+      const mapped = err as AuthMappedError;
+      if (mapped?.code === 'auth/unauthorized-domain') {
+        const host =
+          mapped.hostname ||
+          (typeof window !== 'undefined' ? window.location.hostname : '');
+        setUnauthorizedHost(host || null);
+      }
+      setGoogleError(
         err instanceof Error ? err.message : 'Erro ao entrar com Google / Gmail.'
       );
     } finally {
@@ -75,9 +102,29 @@ export function AuthModal() {
     }
   };
 
+  const handleCopyHost = async () => {
+    if (!unauthorizedHost || typeof navigator === 'undefined' || !navigator.clipboard) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(unauthorizedHost);
+      setCopiedHost(true);
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedHost(false);
+      }, 2200);
+    } catch {
+      // Ignore clipboard permission errors
+    }
+  };
+
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setGoogleError(null);
+    setUnauthorizedHost(null);
     setNotice(null);
 
     const cleanEmail = sanitizeTextField(email, 120);
@@ -237,6 +284,47 @@ export function AuthModal() {
               <span>Continuar com Google / Gmail</span>
             </button>
 
+            {googleError && (
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200 space-y-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{googleError}</span>
+                </div>
+                {unauthorizedHost && (
+                  <div className="rounded-lg border border-red-400/25 bg-[#111111]/90 p-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <code className="text-[11px] font-mono text-amber-300 break-all">
+                        {unauthorizedHost}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={handleCopyHost}
+                        className="inline-flex items-center gap-1 rounded-md border border-[#F7931E]/50 bg-[#F7931E]/15 hover:bg-[#F7931E]/25 px-2.5 py-1 text-[11px] font-medium text-[#F7931E] transition-colors shrink-0"
+                      >
+                        {copiedHost ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>Copiar domínio</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[#E5E5E5]/70 leading-relaxed">
+                      No Console do Firebase: <strong>Authentication</strong> →{' '}
+                      <strong>Settings</strong> → <strong>Authorized domains</strong> →{' '}
+                      <strong>Add domain</strong>. Enquanto isso, você pode entrar ou
+                      criar conta com e-mail e senha abaixo.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="relative flex items-center justify-center">
               <span className="h-px w-full bg-[#2B2B2B]" />
               <span className="bg-[#1C1C1C] px-3 text-[11px] text-[#E5E5E5]/55 whitespace-nowrap">
@@ -251,6 +339,8 @@ export function AuthModal() {
                 onClick={() => {
                   setMode('login');
                   setError(null);
+                  setGoogleError(null);
+                  setUnauthorizedHost(null);
                   setNotice(null);
                 }}
                 className={`min-h-[36px] rounded-lg text-xs font-medium transition-colors ${
@@ -266,6 +356,8 @@ export function AuthModal() {
                 onClick={() => {
                   setMode('register');
                   setError(null);
+                  setGoogleError(null);
+                  setUnauthorizedHost(null);
                   setNotice(null);
                 }}
                 className={`min-h-[36px] rounded-lg text-xs font-medium transition-colors ${
