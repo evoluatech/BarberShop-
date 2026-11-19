@@ -1335,9 +1335,19 @@ export function VirtualTryOnModal({
                   </div>
 
                   {analysisError && (
-                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200 flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                      <span>{analysisError}</span>
+                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200 space-y-2.5">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                        <span className="leading-relaxed">{analysisError}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStartManualWithoutCamera}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#F7931E]/50 bg-[#F7931E]/15 hover:bg-[#F7931E]/25 px-3 py-1.5 text-[11px] font-semibold text-[#F7931E] transition-colors"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>Usar cálculo manual sem IA</span>
+                      </button>
                     </div>
                   )}
 

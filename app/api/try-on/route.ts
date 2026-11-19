@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'O serviço de análise por inteligência artificial não está configurado neste ambiente (chave de API ausente).',
+            'A leitura automática por inteligência artificial não está ativa neste ambiente no momento. Use o botão "Usar cálculo manual sem IA" abaixo.',
         },
         {status: 503, headers: {'Cache-Control': 'no-store'}}
       );
