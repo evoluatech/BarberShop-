@@ -195,135 +195,171 @@ INSTRUÇÕES CRÍTICAS DE HONESTIDADE E PRECISÃO (NUNCA INVENTE OU ADIVINHE DAD
 
 Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-4-hydrogen',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: resolvedMimeType,
-              data: cleanBase64,
-            },
-          },
-          {text: promptText},
-        ],
-      },
-      config: {
-        thinkingConfig: {thinkingLevel: ThinkingLevel.MEDIUM},
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            imageQualityOk: {type: Type.BOOLEAN},
-            imageQualityMessage: {type: Type.STRING},
-            faceShape: {
-              type: Type.STRING,
-              enum: [
-                'Oval',
-                'Quadrado',
-                'Redondo',
-                'Diamante',
-                'Triangular',
-                'Alongado',
-              ],
-            },
-            cranialGeometry: {type: Type.STRING},
-            detectedHairType: {
-              type: Type.STRING,
-              enum: ['Liso', 'Ondulado', 'Cacheado', 'Crespo'],
-            },
-            detectedHairLength: {
-              type: Type.STRING,
-              enum: ['Raspado / Muito curto', 'Curto', 'Médio', 'Longo'],
-            },
-            hairlineObservation: {type: Type.STRING},
-            apparentVolume: {type: Type.STRING},
-            estimatedLength: {type: Type.STRING},
-            visualTexture: {type: Type.STRING},
-            facialProportions: {type: Type.STRING},
-            beardObservation: {type: Type.STRING},
-            compatibilityLabel: {
-              type: Type.STRING,
-              enum: [
-                'Alta compatibilidade',
-                'Boa compatibilidade',
-                'Compatibilidade adaptável',
-                'Baixa compatibilidade',
-              ],
-            },
-            compatibilitySummary: {type: Type.STRING},
-            howItWillLookOnYou: {type: Type.STRING},
-            barberRecommendation: {type: Type.STRING},
-            overallScore: {type: Type.NUMBER},
-            headShapeFitScore: {type: Type.NUMBER},
-            hairTextureFitScore: {type: Type.NUMBER},
-            lengthSufficiencyScore: {type: Type.NUMBER},
-            verdictStatus: {
-              type: Type.STRING,
-              enum: [
-                'Altamente recomendado',
-                'Recomendado com adaptações',
-                'Exige crescimento prévio',
-                'Risco estético — avalie alternativas',
-              ],
-            },
-            riskWarning: {type: Type.STRING},
-            suggestedAdjustments: {
-              type: Type.ARRAY,
-              items: {type: Type.STRING},
-            },
-            betterAlternativeStyleId: {type: Type.STRING},
-            centerX: {type: Type.NUMBER},
-            topY: {type: Type.NUMBER},
-            hairlineY: {type: Type.NUMBER},
-            templeLeftX: {type: Type.NUMBER},
-            templeRightX: {type: Type.NUMBER},
-            earY: {type: Type.NUMBER},
-            jawLeftX: {type: Type.NUMBER},
-            jawRightX: {type: Type.NUMBER},
-            chinY: {type: Type.NUMBER},
-            widthRatio: {type: Type.NUMBER},
-            hairColorHex: {type: Type.STRING},
-          },
-          required: [
-            'imageQualityOk',
-            'faceShape',
-            'cranialGeometry',
-            'detectedHairType',
-            'detectedHairLength',
-            'hairlineObservation',
-            'apparentVolume',
-            'estimatedLength',
-            'visualTexture',
-            'facialProportions',
-            'beardObservation',
-            'compatibilityLabel',
-            'compatibilitySummary',
-            'howItWillLookOnYou',
-            'barberRecommendation',
-            'overallScore',
-            'headShapeFitScore',
-            'hairTextureFitScore',
-            'lengthSufficiencyScore',
-            'verdictStatus',
-            'suggestedAdjustments',
-            'centerX',
-            'topY',
-            'hairlineY',
-            'templeLeftX',
-            'templeRightX',
-            'earY',
-            'jawLeftX',
-            'jawRightX',
-            'chinY',
-            'widthRatio',
-            'hairColorHex',
+    const schemaConfig = {
+      type: Type.OBJECT,
+      properties: {
+        imageQualityOk: {type: Type.BOOLEAN},
+        imageQualityMessage: {type: Type.STRING},
+        faceShape: {
+          type: Type.STRING,
+          enum: [
+            'Oval',
+            'Quadrado',
+            'Redondo',
+            'Diamante',
+            'Triangular',
+            'Alongado',
           ],
         },
+        cranialGeometry: {type: Type.STRING},
+        detectedHairType: {
+          type: Type.STRING,
+          enum: ['Liso', 'Ondulado', 'Cacheado', 'Crespo'],
+        },
+        detectedHairLength: {
+          type: Type.STRING,
+          enum: ['Raspado / Muito curto', 'Curto', 'Médio', 'Longo'],
+        },
+        hairlineObservation: {type: Type.STRING},
+        apparentVolume: {type: Type.STRING},
+        estimatedLength: {type: Type.STRING},
+        visualTexture: {type: Type.STRING},
+        facialProportions: {type: Type.STRING},
+        beardObservation: {type: Type.STRING},
+        compatibilityLabel: {
+          type: Type.STRING,
+          enum: [
+            'Alta compatibilidade',
+            'Boa compatibilidade',
+            'Compatibilidade adaptável',
+            'Baixa compatibilidade',
+          ],
+        },
+        compatibilitySummary: {type: Type.STRING},
+        howItWillLookOnYou: {type: Type.STRING},
+        barberRecommendation: {type: Type.STRING},
+        overallScore: {type: Type.NUMBER},
+        headShapeFitScore: {type: Type.NUMBER},
+        hairTextureFitScore: {type: Type.NUMBER},
+        lengthSufficiencyScore: {type: Type.NUMBER},
+        verdictStatus: {
+          type: Type.STRING,
+          enum: [
+            'Altamente recomendado',
+            'Recomendado com adaptações',
+            'Exige crescimento prévio',
+            'Risco estético — avalie alternativas',
+          ],
+        },
+        riskWarning: {type: Type.STRING},
+        suggestedAdjustments: {
+          type: Type.ARRAY,
+          items: {type: Type.STRING},
+        },
+        betterAlternativeStyleId: {type: Type.STRING},
+        centerX: {type: Type.NUMBER},
+        topY: {type: Type.NUMBER},
+        hairlineY: {type: Type.NUMBER},
+        templeLeftX: {type: Type.NUMBER},
+        templeRightX: {type: Type.NUMBER},
+        earY: {type: Type.NUMBER},
+        jawLeftX: {type: Type.NUMBER},
+        jawRightX: {type: Type.NUMBER},
+        chinY: {type: Type.NUMBER},
+        widthRatio: {type: Type.NUMBER},
+        hairColorHex: {type: Type.STRING},
       },
-    });
+      required: [
+        'imageQualityOk',
+        'faceShape',
+        'cranialGeometry',
+        'detectedHairType',
+        'detectedHairLength',
+        'hairlineObservation',
+        'apparentVolume',
+        'estimatedLength',
+        'visualTexture',
+        'facialProportions',
+        'beardObservation',
+        'compatibilityLabel',
+        'compatibilitySummary',
+        'howItWillLookOnYou',
+        'barberRecommendation',
+        'overallScore',
+        'headShapeFitScore',
+        'hairTextureFitScore',
+        'lengthSufficiencyScore',
+        'verdictStatus',
+        'suggestedAdjustments',
+        'centerX',
+        'topY',
+        'hairlineY',
+        'templeLeftX',
+        'templeRightX',
+        'earY',
+        'jawLeftX',
+        'jawRightX',
+        'chinY',
+        'widthRatio',
+        'hairColorHex',
+      ],
+    };
 
-    const parsed = JSON.parse(response.text || '{}') as {
+    const contentsPayload = {
+      parts: [
+        {
+          inlineData: {
+            mimeType: resolvedMimeType,
+            data: cleanBase64,
+          },
+        },
+        {text: promptText},
+      ],
+    };
+
+    const callVisionModel = (model: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite') =>
+      ai.models.generateContent({
+        model,
+        contents: contentsPayload,
+        config: {
+          thinkingConfig: {thinkingLevel: ThinkingLevel.LOW},
+          responseMimeType: 'application/json',
+          responseSchema: schemaConfig,
+        },
+      });
+
+    let response;
+    try {
+      response = await callVisionModel('gemini-4-hydrogen');
+    } catch (firstErr) {
+      const firstStatus =
+        typeof firstErr === 'object' && firstErr !== null && 'status' in firstErr
+          ? Number((firstErr as {status?: unknown}).status)
+          : 0;
+      const firstMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+      const isTransient =
+        firstStatus === 503 ||
+        firstStatus === 500 ||
+        firstMsg.includes('UNAVAILABLE') ||
+        firstMsg.includes('503');
+      if (!isTransient) {
+        throw firstErr;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      try {
+        response = await callVisionModel('gemini-4-hydrogen');
+      } catch {
+        response = await callVisionModel('gemini-3.1-flash-lite');
+      }
+    }
+
+    const cleanedResponseText = (response.text ?? '')
+      .trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    let parsed: {
       imageQualityOk?: boolean;
       imageQualityMessage?: string;
       faceShape?: FaceShape;
@@ -360,6 +396,11 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       widthRatio?: number;
       hairColorHex?: string;
     };
+    try {
+      parsed = JSON.parse(cleanedResponseText || '{}');
+    } catch {
+      throw new Error('GEMINI_INVALID_JSON_RESPONSE');
+    }
 
     const VALID_COMPATIBILITY_LABELS = new Set<
       VirtualTryOnAnalysis['compatibilityLabel']
@@ -481,11 +522,67 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       {headers: {'Cache-Control': 'no-store'}}
     );
   } catch (error) {
-    console.error('Virtual try-on AI error:', error);
+    const rawMsg = error instanceof Error ? error.message : String(error);
+    const errStatus =
+      typeof error === 'object' && error !== null && 'status' in error
+        ? Number((error as {status?: unknown}).status)
+        : 0;
+    console.error('Virtual try-on AI error:', errStatus || 'unknown', rawMsg);
+
+    if (
+      errStatus === 429 ||
+      rawMsg.includes('RESOURCE_EXHAUSTED') ||
+      rawMsg.includes('"code":429')
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Limite temporário de uso da IA atingido (cota). Aguarde alguns instantes e tente novamente ou use o cálculo manual abaixo.',
+          code: 'GEMINI_QUOTA_EXCEEDED',
+        },
+        {status: 429, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
+    if (
+      errStatus === 403 ||
+      errStatus === 400 ||
+      rawMsg.includes('PERMISSION_DENIED') ||
+      rawMsg.includes('API_KEY_INVALID') ||
+      rawMsg.includes('API key not valid') ||
+      rawMsg.includes('API key expired')
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'A credencial de IA configurada neste ambiente foi recusada pelo serviço (400/403). Verifique em Settings > Secrets ou use o cálculo manual abaixo.',
+          code: 'GEMINI_AUTH_ERROR',
+          upstreamStatus: errStatus || undefined,
+        },
+        {status: 502, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
+    if (errStatus === 404 || rawMsg.includes('NOT_FOUND')) {
+      return NextResponse.json(
+        {
+          error:
+            'Modelo de análise visual indisponível neste momento (404). Tente novamente ou use o cálculo manual abaixo.',
+          code: 'GEMINI_MODEL_NOT_FOUND',
+          upstreamStatus: errStatus || undefined,
+        },
+        {status: 502, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
     return NextResponse.json(
       {
         error:
           'Não foi possível concluir a leitura ao vivo por inteligência artificial neste momento. Verifique sua conexão, ilumine bem o rosto e tente novamente.',
+        code: rawMsg.includes('GEMINI_INVALID_JSON_RESPONSE')
+          ? 'GEMINI_INVALID_JSON_RESPONSE'
+          : 'GEMINI_UPSTREAM_ERROR',
+        upstreamStatus: errStatus || undefined,
       },
       {status: 502, headers: {'Cache-Control': 'no-store'}}
     );

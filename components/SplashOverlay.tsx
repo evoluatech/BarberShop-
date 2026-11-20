@@ -32,7 +32,7 @@ export function SplashOverlay() {
             transition={{duration: 0.4, ease: [0.16, 1, 0.3, 1]}}
             className="flex flex-col items-center"
           >
-            <BrandLogo size="xl" />
+            <BrandLogo size="xl" priority />
             <h1 className="mt-6 font-display text-2xl sm:text-3xl font-bold tracking-tight text-white">
               {BARBERSHOP_INFO.name}
             </h1>

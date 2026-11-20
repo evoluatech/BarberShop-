@@ -526,7 +526,7 @@ export function BarberClientApp() {
               onClick={() => navigateTo('inicio')}
               className="shrink-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F7931E] rounded-lg"
             >
-              <BrandLogo size="sm" showWordmark />
+              <BrandLogo size="sm" showWordmark priority />
             </button>
 
             {/* Zone 2: Desktop single-line text nav links */}

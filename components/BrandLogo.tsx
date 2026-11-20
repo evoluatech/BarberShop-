@@ -8,12 +8,14 @@ import {BARBERSHOP_INFO} from '@/lib/data/seed';
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showWordmark?: boolean;
+  priority?: boolean;
   className?: string;
 }
 
 export function BrandLogo({
   size = 'md',
   showWordmark = false,
+  priority = false,
   className = '',
 }: BrandLogoProps) {
   const [imgFailed, setImgFailed] = useState(false);
@@ -43,6 +45,7 @@ export function BrandLogo({
             alt={BARBERSHOP_INFO.name}
             fill
             sizes={imageSizes}
+            priority={priority}
             referrerPolicy="no-referrer"
             onError={() => setImgFailed(true)}
             className="object-cover object-center scale-[1.35]"

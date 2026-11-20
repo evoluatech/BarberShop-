@@ -8,6 +8,7 @@ import {
   KeyRound,
   Loader2,
   LogIn,
+  LogOut,
   Mail,
   RefreshCw,
   ShieldCheck,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {AuthMappedError, useFirebaseAuth} from '@/components/FirebaseProvider';
-import {sanitizeTextField} from '@/lib/utils/security';
+import {copyTextResilient, sanitizeTextField} from '@/lib/utils/security';
 
 export function AuthModal() {
   const {
@@ -28,6 +29,7 @@ export function AuthModal() {
     registerWithEmail,
     resendVerificationEmail,
     reloadAuthUser,
+    signOutUser,
   } = useFirebaseAuth();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -103,11 +105,11 @@ export function AuthModal() {
   };
 
   const handleCopyHost = async () => {
-    if (!unauthorizedHost || typeof navigator === 'undefined' || !navigator.clipboard) {
+    if (!unauthorizedHost) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(unauthorizedHost);
+    const ok = await copyTextResilient(unauthorizedHost);
+    if (ok) {
       setCopiedHost(true);
       if (copyTimerRef.current !== null) {
         window.clearTimeout(copyTimerRef.current);
@@ -115,8 +117,6 @@ export function AuthModal() {
       copyTimerRef.current = window.setTimeout(() => {
         setCopiedHost(false);
       }, 2200);
-    } catch {
-      // Ignore clipboard permission errors
     }
   };
 
@@ -264,6 +264,24 @@ export function AuthModal() {
                 className="min-h-[42px] rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] px-4 py-2 text-xs font-medium text-white hover:border-[#F7931E]/60"
               >
                 Reenviar e-mail de verificação
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  setNotice(null);
+                  try {
+                    await signOutUser();
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="min-h-[40px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-transparent px-4 py-2 text-xs font-medium text-[#E5E5E5]/75 hover:text-white hover:border-red-500/40 transition-colors"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Usar outra conta / Entrar com Google</span>
               </button>
             </div>
           </div>

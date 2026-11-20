@@ -199,6 +199,9 @@ export function VirtualTryOnModal({
   const arCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scannerCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraRequestSeqRef = useRef<number>(0);
+  const cameraStartingRef = useRef<boolean>(false);
+  const facingModeRef = useRef<'user' | 'environment'>(facingMode);
   // Transient memory-only frame from live camera (never displayed or stored as photo)
   const lastLiveFrameRef = useRef<string | null>(null);
   const scanTriggeredRef = useRef<boolean>(false);
@@ -223,7 +226,13 @@ export function VirtualTryOnModal({
 
   const isMirrored = facingMode === 'user';
 
+  useEffect(() => {
+    facingModeRef.current = facingMode;
+  }, [facingMode]);
+
   const stopCamera = useCallback(() => {
+    cameraRequestSeqRef.current += 1;
+    cameraStartingRef.current = false;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -264,6 +273,8 @@ export function VirtualTryOnModal({
       targetStage: TryOnStage = 'camera',
       requestedFacing: 'user' | 'environment' = 'user'
     ) => {
+      const reqSeq = ++cameraRequestSeqRef.current;
+      cameraStartingRef.current = true;
       setCameraError(null);
       setCameraReady(false);
       setScanProgress(0);
@@ -278,21 +289,34 @@ export function VirtualTryOnModal({
       setStage(targetStage);
       try {
         const stream = await requestCameraStreamWithFallback(requestedFacing);
+        if (reqSeq !== cameraRequestSeqRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         setCameraPermissionPreference('granted');
         streamRef.current = stream;
         setLiveCameraActive(true);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => undefined);
-          setCameraReady(true);
+          if (reqSeq === cameraRequestSeqRef.current) {
+            setCameraReady(true);
+          }
         }
       } catch (err) {
+        if (reqSeq !== cameraRequestSeqRef.current) {
+          return;
+        }
         const info = describeCameraError(err);
         if (!info.isIframeBlocked) {
           setCameraPermissionPreference('denied');
         }
         setLiveCameraActive(false);
         setCameraError(info);
+      } finally {
+        if (reqSeq === cameraRequestSeqRef.current) {
+          cameraStartingRef.current = false;
+        }
       }
     },
     []
@@ -300,12 +324,22 @@ export function VirtualTryOnModal({
 
   // Automatically open live camera preview when entering camera stage with granted permission
   useEffect(() => {
-    if (!open || stage !== 'camera' || streamRef.current || cameraError) return;
+    if (
+      !open ||
+      stage !== 'camera' ||
+      streamRef.current ||
+      cameraStartingRef.current ||
+      cameraError
+    ) {
+      return;
+    }
     const timer = window.setTimeout(() => {
-      startCamera('camera', facingMode);
+      if (!streamRef.current && !cameraStartingRef.current) {
+        startCamera('camera', facingModeRef.current);
+      }
     }, 60);
     return () => window.clearTimeout(timer);
-  }, [open, stage, cameraError, facingMode, startCamera]);
+  }, [open, stage, cameraError, startCamera]);
 
   const runLiveVisionAnalysis = useCallback(
     async (
