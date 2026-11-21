@@ -216,15 +216,15 @@ export function AuthModal() {
           <div className="rounded-xl border border-[#F7931E]/40 bg-[#111111] p-4 space-y-3">
             <div className="flex items-start gap-2.5">
               <Mail className="h-5 w-5 text-[#F7931E] shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-white">
+              <div className="space-y-1 min-w-0">
+                <p className="text-sm font-semibold text-white leading-snug">
                   Confirme seu endereço de e-mail
                 </p>
-                <p className="text-xs text-[#E5E5E5]/75 leading-relaxed">
+                <p className="text-xs text-[#E5E5E5]/75 leading-relaxed break-words">
                   Enviamos um link de verificação para{' '}
-                  <strong className="text-white">{user?.email}</strong>. Por segurança
-                  das regras do banco, é necessário confirmar seu e-mail para liberar
-                  agendamentos.
+                  <strong className="text-white break-all">{user?.email}</strong>. Por
+                  segurança das regras do banco, é necessário confirmar seu e-mail para
+                  liberar agendamentos.
                 </p>
               </div>
             </div>

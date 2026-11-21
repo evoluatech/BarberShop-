@@ -332,17 +332,17 @@ export function ProfileView({
         </div>
       </form>
 
-      {/* Permissão de Câmera */}
+      {/* Permissão de Câmera (Face ID) */}
       <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 min-w-0">
           <div className="h-11 w-11 rounded-xl bg-[#111111] border border-[#2B2B2B] flex items-center justify-center shrink-0">
             <Camera className="h-5 w-5 text-[#F7931E]" />
           </div>
-          <div>
-            <h3 className="font-display text-base font-semibold text-white">
-              Acesso à câmera (Análise Face ID)
+          <div className="min-w-0">
+            <h3 className="font-display text-base font-semibold text-white leading-snug break-words">
+              Acesso à câmera (Face ID em dados)
             </h3>
-            <p className="text-xs text-[#E5E5E5]/70 mt-0.5">
+            <p className="text-xs text-[#E5E5E5]/70 mt-0.5 leading-relaxed break-words">
               Status atual:{' '}
               <strong className="text-white">
                 {cameraPref === 'granted'
@@ -353,7 +353,7 @@ export function ProfileView({
               </strong>
             </p>
             {cameraMsg && (
-              <p className="text-xs text-amber-300 mt-1 leading-relaxed">
+              <p className="text-xs text-amber-300 mt-1 leading-relaxed break-words">
                 {cameraMsg.message}
               </p>
             )}
@@ -363,12 +363,12 @@ export function ProfileView({
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {cameraMsg?.isIframeBlocked && typeof window !== 'undefined' && (
             <a
-              href={`${window.location.origin}${window.location.pathname}${window.location.hash}`}
+              href={window.location.href}
               target="_blank"
               rel="noopener noreferrer"
               className="min-h-[42px] inline-flex items-center gap-1.5 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-4 py-2 text-xs font-semibold text-[#111111] transition-colors"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
               <span>Abrir em nova aba</span>
             </a>
           )}
@@ -412,7 +412,7 @@ export function ProfileView({
           className="min-h-[56px] flex items-center gap-3 rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-4 py-3 text-left transition-colors"
         >
           <Building2 className="h-5 w-5 text-[#F7931E] shrink-0" />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-white">Sobre a barbearia</p>
             <p className="text-xs text-[#E5E5E5]/65">Fotos, horários e endereço</p>
           </div>
@@ -424,7 +424,7 @@ export function ProfileView({
           className="min-h-[56px] flex items-center gap-3 rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-4 py-3 text-left transition-colors"
         >
           <Users className="h-5 w-5 text-[#F7931E] shrink-0" />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-white">Profissionais</p>
             <p className="text-xs text-[#E5E5E5]/65">Conheça nossa equipe</p>
           </div>
@@ -436,9 +436,9 @@ export function ProfileView({
           className="min-h-[56px] flex items-center gap-3 rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-4 py-3 text-left transition-colors"
         >
           <ShieldCheck className="h-5 w-5 text-[#F7931E] shrink-0" />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-white">Política de Privacidade</p>
-            <p className="text-xs text-[#E5E5E5]/65">Uso da câmera e LGPD</p>
+            <p className="text-xs text-[#E5E5E5]/65">Câmera, Face ID e LGPD</p>
           </div>
         </button>
 

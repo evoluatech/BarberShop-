@@ -8,6 +8,7 @@ import {
   Clock,
   ExternalLink,
   MapPin,
+  ScanFace,
   Scissors,
   ShieldCheck,
   Star,
@@ -63,7 +64,7 @@ export function HomeView({
 
   return (
     <div className="space-y-8 sm:space-y-12 pb-8">
-      {/* Opção inicial de acesso à câmera e feedback diagnóstico */}
+      {/* Opção inicial de acesso à câmera para leitura Face ID */}
       {(cameraPref === 'unset' || cameraFeedback) && (
         <section
           aria-label="Preferência de acesso à câmera"
@@ -74,13 +75,13 @@ export function HomeView({
               <Camera className="h-5 w-5 text-[#F7931E]" />
             </div>
             <div className="space-y-1 min-w-0">
-              <h2 className="font-display text-base font-bold text-white leading-snug">
+              <h2 className="font-display text-base font-bold text-white leading-snug break-words">
                 Permitir acesso à câmera para leitura Face ID?
               </h2>
-              <p className="text-xs sm:text-sm text-[#E5E5E5]/75 leading-relaxed">
-                Com a câmera liberada, nossa IA analisa ao vivo pelo vídeo o formato da
-                sua cabeça, tipo de cabelo e comprimento antes de você escolher o corte
-                — sem tirar ou salvar fotos.
+              <p className="text-xs sm:text-sm text-[#E5E5E5]/75 leading-relaxed break-words">
+                O Face ID lê pela câmera o formato do seu rosto, tipo de cabelo e
+                comprimento atual e exibe apenas o resultado em dados — sem exibir ou
+                salvar fotos ou vídeos do corte.
               </p>
               {cameraFeedback && (
                 <p className="text-xs text-amber-300 pt-1 leading-relaxed break-words">
@@ -90,13 +91,13 @@ export function HomeView({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 min-[340px]:grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
             {cameraFeedback?.isIframeBlocked && typeof window !== 'undefined' && (
               <a
                 href={window.location.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="min-[340px]:col-span-2 sm:col-span-1 min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-4 py-2 text-xs sm:text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap"
+                className="min-[360px]:col-span-2 sm:col-span-1 min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-4 py-2 text-xs sm:text-sm font-semibold text-[#111111] transition-colors text-center leading-snug"
               >
                 <ExternalLink className="h-4 w-4 shrink-0" />
                 <span>Abrir em nova aba</span>
@@ -106,7 +107,7 @@ export function HomeView({
               type="button"
               disabled={cameraRequesting}
               onClick={handleAllowCameraEntry}
-              className={`min-h-[44px] inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap disabled:opacity-60 ${
+              className={`min-h-[44px] inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-colors text-center leading-snug disabled:opacity-60 ${
                 cameraFeedback?.isIframeBlocked
                   ? 'border border-[#2B2B2B] bg-[#111111] text-white hover:border-[#F7931E]/60'
                   : 'bg-[#F7931E] hover:bg-[#D97706] text-[#111111]'
@@ -128,7 +129,7 @@ export function HomeView({
                 setCameraFeedback(null);
                 denyCamera();
               }}
-              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#E5E5E5]/40 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-[#E5E5E5] transition-colors whitespace-nowrap"
+              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#E5E5E5]/40 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-[#E5E5E5] transition-colors text-center leading-snug"
             >
               Não permitir
             </button>
@@ -210,30 +211,30 @@ export function HomeView({
         </div>
       </section>
 
-      {/* Destaque Simulação Virtual */}
+      {/* Destaque Face ID em Dados */}
       <section className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-4 sm:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
           <div className="space-y-2 max-w-2xl min-w-0">
             <p className="text-xs font-medium text-[#F7931E]">
-              Análise Face ID e Visagismo por IA
+              Análise Face ID em Dados
             </p>
             <h2 className="font-display text-xl sm:text-2xl font-bold text-white [text-wrap:balance]">
-              Veja se o corte combina com você antes de cortar
+              Veja pelos seus dados se o corte combina com você
             </h2>
-            <p className="text-sm text-[#E5E5E5]/75 leading-relaxed">
-              Nossa IA analisa ao vivo pelo vídeo da câmera (estilo Face ID) o formato
-              da sua cabeça, tipo de fio (liso, ondulado, cacheado ou crespo) e
-              comprimento atual para calcular a compatibilidade real de cada estilo.
+            <p className="text-sm text-[#E5E5E5]/75 leading-relaxed break-words">
+              O Face ID lê pela câmera o formato do seu rosto (ex.: oval, quadrado), tipo
+              de cabelo e comprimento atual para mostrar em dados objetivos se dá bom
+              corte ou não — sem exibir imagens ou vídeos simulados.
             </p>
           </div>
           <div className="shrink-0">
             <button
               type="button"
               onClick={() => onOpenTryOn()}
-              className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 sm:px-6 py-3 text-sm font-semibold text-[#111111] transition-colors whitespace-nowrap"
+              className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 sm:px-6 py-3 text-sm font-semibold text-[#111111] transition-colors text-center leading-snug"
             >
-              <Camera className="h-4 w-4 shrink-0" />
-              <span>Veja como fica em você</span>
+              <ScanFace className="h-4 w-4 shrink-0" />
+              <span>Fazer leitura Face ID</span>
             </button>
           </div>
         </div>
@@ -321,8 +322,8 @@ export function HomeView({
                         onClick={() => onOpenTryOn(service.tryOnStyleId)}
                         className="w-full min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 px-3 py-2 text-xs font-medium text-[#E5E5E5] transition-colors"
                       >
-                        <Camera className="h-3.5 w-3.5 text-[#F7931E]" />
-                        <span>Veja como fica em você</span>
+                        <ScanFace className="h-3.5 w-3.5 text-[#F7931E] shrink-0" />
+                        <span>Ver compatibilidade (Face ID)</span>
                       </button>
                     )}
                   </div>

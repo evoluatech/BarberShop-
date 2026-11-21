@@ -8,6 +8,61 @@ import {
   VisagismVerdict,
 } from '@/lib/types/domain';
 
+const FACE_SHAPE_GUIDANCE: Record<
+  FaceShape,
+  {geometry: string; hairlineTip: string; sideStrategy: string}
+> = {
+  Oval: {
+    geometry: 'Proporção naturalmente equilibrada entre testa, maçãs do rosto e mandíbula.',
+    hairlineTip: 'Permite acabamento frontal limpo ou levemente desfiado com liberdade de altura.',
+    sideStrategy: 'Mantém transição suave nas têmporas sem alongar demais o topo.',
+  },
+  Quadrado: {
+    geometry: 'Maxilar e testa marcados com ângulos laterais definidos.',
+    hairlineTip: 'Linha frontal reta reforça presença; topo levemente desconectado suaviza quinas.',
+    sideStrategy: 'Laterais bem alinhadas valorizam o desenho natural da mandíbula.',
+  },
+  Redondo: {
+    geometry: 'Largura das bochechas próxima à altura facial, com contornos suaves.',
+    hairlineTip: 'Evite franja pesada reta; volume vertical controlado no topo alonga o rosto.',
+    sideStrategy: 'Laterais mais baixas e limpas afinam a silhueta lateral.',
+  },
+  Diamante: {
+    geometry: 'Maçãs do rosto destacadas com testa e queixo ligeiramente mais estreitos.',
+    hairlineTip: 'Textura frontal com movimento ajuda a ampliar visualmente a região da testa.',
+    sideStrategy: 'Preservar leve preenchimento nas têmporas equilibra o contorno.',
+  },
+  Triangular: {
+    geometry: 'Mandíbula mais larga em relação à testa e têmporas.',
+    hairlineTip: 'Volume moderado no topo e nas têmporas traz proporção ao terço superior.',
+    sideStrategy: 'Evitar raspar alto demais nas têmporas para não estreitar a testa.',
+  },
+  Alongado: {
+    geometry: 'Comprimento vertical predominante em relação à largura das maçãs.',
+    hairlineTip: 'Franja leve ou topo com altura moderada evita alongar ainda mais o rosto.',
+    sideStrategy: 'Deixar um pouco mais de corpo nas laterais cria equilíbrio horizontal.',
+  },
+};
+
+const HAIR_TYPE_NOTES: Record<HairType, {volume: string; finishTip: string}> = {
+  Liso: {
+    volume: 'Caimento linear e menor volume lateral natural; pede texturização para não pesar.',
+    finishTip: 'Usar tesoura dentada ou pontilhada no topo para dar movimento e encaixe.',
+  },
+  Ondulado: {
+    volume: 'Movimento em "S" versátil com bom volume natural no topo e encaixe fácil.',
+    finishTip: 'Respeitar as ondas naturais nas conexões para evitar pontas arrepiadas.',
+  },
+  Cacheado: {
+    volume: 'Volume concentrado e definição em espiral que destaca o contraste com laterais limpas.',
+    finishTip: 'Ajustar o comprimento considerando o fator encolhimento após secar.',
+  },
+  Crespo: {
+    volume: 'Estrutura firme e ótimo poder de contorno geométrico e degradês de alto contraste.',
+    finishTip: 'Trabalhar o contorno na máquina/tesoura a seco para precisão milimétrica.',
+  },
+};
+
 export function computeManualVisagism(params: {
   styleId: VirtualHairstyleId;
   faceShape: FaceShape;
@@ -168,11 +223,11 @@ export function computeManualVisagism(params: {
   if (lengthSufficiencyScore < 55) {
     verdictStatus = 'Exige crescimento prévio';
     compatibilityLabel = 'Compatibilidade adaptável';
-    riskWarning = `Com cabelo atualmente ${params.hairLength.toLowerCase()}, falta comprimento para estruturar ${preset.name}. Cortar agora pode deixar o topo ralo demais; aguarde 3 a 5 semanas de crescimento.`;
+    riskWarning = `Com o cabelo atualmente ${params.hairLength.toLowerCase()}, falta comprimento no topo para estruturar o ${preset.name}. Cortar agora pode deixá-lo curto demais; o ideal é aguardar de 3 a 5 semanas de crescimento.`;
   } else if (overallScore < 72) {
     verdictStatus = 'Risco estético — avalie alternativas';
     compatibilityLabel = 'Baixa compatibilidade';
-    riskWarning = `Para rosto ${params.faceShape.toLowerCase()} e fios ${params.hairType.toLowerCase()}, este corte sem adaptação pode acentuar largura ou perder definição no caimento.`;
+    riskWarning = `Para rosto ${params.faceShape.toLowerCase()} com fios ${params.hairType.toLowerCase()}, este corte sem adaptação pode acentuar largura lateral ou perder definição no caimento.`;
   } else if (overallScore < 85) {
     verdictStatus = 'Recomendado com adaptações';
     compatibilityLabel = 'Boa compatibilidade';
@@ -185,23 +240,30 @@ export function computeManualVisagism(params: {
         : 'corte-social'
       : undefined;
 
+  const faceInfo = FACE_SHAPE_GUIDANCE[params.faceShape];
+  const hairInfo = HAIR_TYPE_NOTES[params.hairType];
+  const involvesBeard =
+    params.styleId === 'barba-desenhada' ||
+    params.styleId === 'combo-corte-barba' ||
+    params.styleId === 'corte-barba-sobrancelha';
+
   return {
-    imageQualityOk: true,
     faceShape: params.faceShape,
-    cranialGeometry: `Estimativa manual para rosto ${params.faceShape.toLowerCase()} (sem leitura por câmera).`,
+    cranialGeometry: faceInfo.geometry,
     detectedHairType: params.hairType,
     detectedHairLength: params.hairLength,
-    hairlineObservation:
-      'Modo manual sem câmera — ative o Face ID ao vivo para leitura real da linha frontal.',
-    apparentVolume: `Volume estimado para cabelo ${params.hairType.toLowerCase()} (${params.hairLength.toLowerCase()}).`,
+    hairlineObservation: faceInfo.hairlineTip,
+    apparentVolume: `${hairInfo.volume} Comprimento selecionado: ${params.hairLength.toLowerCase()}.`,
     estimatedLength: params.hairLength,
     visualTexture: `Fios do tipo ${params.hairType.toLowerCase()}.`,
-    facialProportions: `Simulação técnica para formato ${params.faceShape.toLowerCase()}.`,
-    beardObservation: 'Não avaliada sem leitura pela câmera.',
+    facialProportions: `Rosto ${params.faceShape.toLowerCase()} · ${faceInfo.sideStrategy}`,
+    beardObservation: involvesBeard
+      ? `Alinhamento da linha da bochecha e pescoço ajustado para valorizar o formato ${params.faceShape.toLowerCase()}.`
+      : 'Serviço focado no corte; combine com barba desenhada se desejar definir mais o maxilar.',
     compatibilityLabel,
-    compatibilitySummary: `No cálculo técnico para rosto ${params.faceShape.toLowerCase()} e cabelo ${params.hairType.toLowerCase()}, o estilo ${preset.name} atingiu ${overallScore}% de compatibilidade.`,
-    howItWillLookOnYou: `Sem leitura pela câmera, esta é uma estimativa técnica: ${preset.finishNote} Ative o Face ID ao vivo para a IA medir o formato real da sua cabeça e seus fios.`,
-    barberRecommendation: `Confirme com o barbeiro a altura ideal das laterais respeitando a textura ${params.hairType.toLowerCase()}.`,
+    compatibilitySummary: `Considerando rosto ${params.faceShape.toLowerCase()}, fio ${params.hairType.toLowerCase()} e comprimento ${params.hairLength.toLowerCase()}, o ${preset.name} alcança ${overallScore}% de compatibilidade.`,
+    howItWillLookOnYou: `No seu perfil (rosto ${params.faceShape.toLowerCase()} e cabelo ${params.hairType.toLowerCase()} ${params.hairLength.toLowerCase()}), o ${preset.name} tende a ficar assim: ${preset.finishNote} ${faceInfo.sideStrategy}`,
+    barberRecommendation: `Peça ao barbeiro para adaptar a altura das laterais ao seu rosto ${params.faceShape.toLowerCase()} e finalizar respeitando o fio ${params.hairType.toLowerCase()}.`,
     calculations: {
       overallScore,
       headShapeFitScore,
@@ -210,26 +272,15 @@ export function computeManualVisagism(params: {
       verdictStatus,
       riskWarning,
       suggestedAdjustments: [
-        `Respeitar a curvatura natural do fio ${params.hairType.toLowerCase()}.`,
-        `Equilibrar laterais de acordo com o rosto ${params.faceShape.toLowerCase()}.`,
+        faceInfo.sideStrategy,
+        hairInfo.finishTip,
+        faceInfo.hairlineTip,
       ],
-      betterAlternativeStyleId,
+      betterAlternativeStyleId:
+        betterAlternativeStyleId && betterAlternativeStyleId !== params.styleId
+          ? betterAlternativeStyleId
+          : undefined,
     },
-    faceAlignment: {
-      centerX: 0.5,
-      topY: 0.14,
-      hairlineY: 0.25,
-      templeLeftX: 0.31,
-      templeRightX: 0.69,
-      earY: 0.48,
-      jawLeftX: 0.34,
-      jawRightX: 0.66,
-      chinY: 0.72,
-      widthRatio: 0.44,
-      hairColorHex: '#1F1A17',
-    },
-    fallbackNote:
-      'Cálculo feito no modo manual sem câmera. Para uma análise 100% real em tempo real, use o Face ID ao vivo.',
     source: 'manual_profile',
   };
 }

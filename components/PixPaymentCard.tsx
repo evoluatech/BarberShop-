@@ -44,15 +44,15 @@ export function PixPaymentCard({
   return (
     <div className="rounded-xl border border-[#F7931E]/45 bg-[#111111] p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
+        <div className="flex items-start gap-2.5 min-w-0">
           <div className="h-9 w-9 rounded-lg bg-[#F7931E]/15 border border-[#F7931E]/35 flex items-center justify-center shrink-0">
             <QrCode className="h-4 w-4 text-[#F7931E]" />
           </div>
-          <div>
-            <p className="text-sm font-semibold text-white">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white break-words">
               Pix do barbeiro · {pixDetails.holderName}
             </p>
-            <p className="text-xs text-[#E5E5E5]/65">
+            <p className="text-xs text-[#E5E5E5]/65 break-words">
               {subtitle || `${pixDetails.bankName} · Chave ${pixDetails.pixKeyType}`}
             </p>
           </div>

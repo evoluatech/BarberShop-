@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import {Calendar, Camera, Check, Clock, Star, X} from 'lucide-react';
+import {Calendar, Check, Clock, ScanFace, Star, X} from 'lucide-react';
 import {useEffect} from 'react';
 import {BARBERS} from '@/lib/data/seed';
 import {Barber, Service, VirtualHairstyleId} from '@/lib/types/domain';
@@ -189,8 +189,8 @@ export function ServiceDetailSheet({
               }}
               className="sm:flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 px-4 py-2.5 text-sm font-medium text-white transition-colors"
             >
-              <Camera className="h-4 w-4 text-[#F7931E]" />
-              <span>Veja como fica em você</span>
+              <ScanFace className="h-4 w-4 text-[#F7931E] shrink-0" />
+              <span>Ver compatibilidade (Face ID)</span>
             </button>
           )}
           <button

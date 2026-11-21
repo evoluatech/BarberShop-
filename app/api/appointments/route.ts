@@ -57,7 +57,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    let body: Record<string, unknown>;
+    try {
+      const parsed = await req.json();
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return NextResponse.json(
+          {error: 'Corpo da requisição inválido para agendamento.'},
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
+        );
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        {error: 'Requisição JSON inválida para agendamento.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
     const {
       clientId,
       clientName,
@@ -110,8 +126,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (
+      typeof serviceId !== 'string' ||
       !isSafeEntityId(serviceId) ||
-      (barberId && barberId !== 'any' && !isSafeEntityId(barberId)) ||
+      (barberId !== undefined &&
+        (typeof barberId !== 'string' ||
+          (barberId !== 'any' && !isSafeEntityId(barberId)))) ||
       typeof date !== 'string' ||
       !isValidISODate(date) ||
       typeof startTime !== 'string' ||
@@ -126,11 +145,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const resolvedPaymentMethod: PaymentMethod = VALID_PAYMENT_METHODS.includes(
-      paymentMethod
-    )
-      ? paymentMethod
-      : 'pix';
+    const resolvedPaymentMethod: PaymentMethod =
+      typeof paymentMethod === 'string' &&
+      VALID_PAYMENT_METHODS.includes(paymentMethod as PaymentMethod)
+        ? (paymentMethod as PaymentMethod)
+        : 'pix';
 
     const result = createAppointment({
       clientId: cleanClientId,
@@ -138,7 +157,7 @@ export async function POST(req: NextRequest) {
       clientPhone: cleanPhone,
       clientEmail: cleanEmail || undefined,
       serviceId,
-      barberId: barberId || 'any',
+      barberId: typeof barberId === 'string' && barberId ? barberId : 'any',
       date,
       startTime,
       notes: cleanNotes || undefined,

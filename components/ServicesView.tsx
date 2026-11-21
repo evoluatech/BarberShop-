@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import {Camera, Clock, Scissors} from 'lucide-react';
+import {Clock, ScanFace, Scissors} from 'lucide-react';
 import {useMemo, useState} from 'react';
 import {BARBERS, SERVICES} from '@/lib/data/seed';
 import {Service, ServiceCategory, VirtualHairstyleId} from '@/lib/types/domain';
@@ -165,8 +165,8 @@ export function ServicesView({
                           onClick={() => onOpenTryOn(service.tryOnStyleId!)}
                           className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#F7931E]/60 px-4 py-2 text-xs font-medium text-white transition-colors"
                         >
-                          <Camera className="h-4 w-4 text-[#F7931E]" />
-                          <span>Veja como fica em você</span>
+                          <ScanFace className="h-4 w-4 text-[#F7931E] shrink-0" />
+                          <span>Ver compatibilidade (Face ID)</span>
                         </button>
                       )}
                     </div>

@@ -2,7 +2,6 @@ import {GoogleGenAI, ThinkingLevel, Type} from '@google/genai';
 import {NextRequest, NextResponse} from 'next/server';
 import {VIRTUAL_HAIRSTYLE_PRESETS} from '@/lib/data/seed';
 import {
-  FaceAlignmentMetrics,
   FaceShape,
   HairLengthCategory,
   HairType,
@@ -21,13 +20,6 @@ function clampInt(num: unknown, min: number, max: number, fallback: number): num
   return Math.round(clamp(num, min, max, fallback));
 }
 
-function sanitizeHexColor(hex: unknown): string {
-  if (typeof hex === 'string' && /^#[0-9a-fA-F]{6}$/.test(hex.trim())) {
-    return hex.trim();
-  }
-  return '#1F1A17';
-}
-
 const VALID_FACE_SHAPES = new Set<FaceShape>([
   'Oval',
   'Quadrado',
@@ -43,19 +35,29 @@ const VALID_HAIR_LENGTHS = new Set<HairLengthCategory>([
   'Médio',
   'Longo',
 ]);
+const VALID_STYLE_IDS = new Set<VirtualHairstyleId>(
+  VIRTUAL_HAIRSTYLE_PRESETS.map((p) => p.id)
+);
 
 export async function POST(req: NextRequest) {
   let body: {
-    imageBase64?: string;
-    mimeType?: string;
-    styleId?: VirtualHairstyleId;
-    mode?: 'vision' | 'manual';
-    manualFaceShape?: FaceShape;
-    manualHairType?: HairType;
-    manualHairLength?: HairLengthCategory;
+    imageBase64?: unknown;
+    mimeType?: unknown;
+    styleId?: unknown;
+    mode?: unknown;
+    manualFaceShape?: unknown;
+    manualHairType?: unknown;
+    manualHairLength?: unknown;
   };
   try {
-    body = (await req.json()) ?? {};
+    const parsed = await req.json();
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return NextResponse.json(
+        {error: 'Corpo da requisição inválido para análise.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+    body = parsed as typeof body;
   } catch {
     return NextResponse.json(
       {error: 'Requisição JSON inválida para análise.'},
@@ -74,23 +76,69 @@ export async function POST(req: NextRequest) {
       manualHairLength,
     } = body;
 
+    if (
+      styleId !== undefined &&
+      (typeof styleId !== 'string' || !VALID_STYLE_IDS.has(styleId as VirtualHairstyleId))
+    ) {
+      return NextResponse.json(
+        {error: 'Estilo de corte selecionado é inválido.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
     const chosenStyleId: VirtualHairstyleId =
-      styleId && VIRTUAL_HAIRSTYLE_PRESETS.some((p) => p.id === styleId)
-        ? styleId
+      typeof styleId === 'string' && VALID_STYLE_IDS.has(styleId as VirtualHairstyleId)
+        ? (styleId as VirtualHairstyleId)
         : 'corte-degrade';
 
+    if (mode !== undefined && mode !== 'vision' && mode !== 'manual') {
+      return NextResponse.json(
+        {error: 'Modo de análise inválido.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
     if (mode === 'manual' && !imageBase64) {
+      if (
+        manualFaceShape !== undefined &&
+        (typeof manualFaceShape !== 'string' ||
+          !VALID_FACE_SHAPES.has(manualFaceShape as FaceShape))
+      ) {
+        return NextResponse.json(
+          {error: 'Formato de rosto informado é inválido.'},
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
+        );
+      }
+      if (
+        manualHairType !== undefined &&
+        (typeof manualHairType !== 'string' ||
+          !VALID_HAIR_TYPES.has(manualHairType as HairType))
+      ) {
+        return NextResponse.json(
+          {error: 'Tipo de cabelo informado é inválido.'},
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
+        );
+      }
+      if (
+        manualHairLength !== undefined &&
+        (typeof manualHairLength !== 'string' ||
+          !VALID_HAIR_LENGTHS.has(manualHairLength as HairLengthCategory))
+      ) {
+        return NextResponse.json(
+          {error: 'Comprimento de cabelo informado é inválido.'},
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
+        );
+      }
+
       const safeFaceShape: FaceShape =
-        manualFaceShape && VALID_FACE_SHAPES.has(manualFaceShape)
-          ? manualFaceShape
+        typeof manualFaceShape === 'string'
+          ? (manualFaceShape as FaceShape)
           : 'Oval';
       const safeHairType: HairType =
-        manualHairType && VALID_HAIR_TYPES.has(manualHairType)
-          ? manualHairType
-          : 'Ondulado';
+        typeof manualHairType === 'string' ? (manualHairType as HairType) : 'Ondulado';
       const safeHairLength: HairLengthCategory =
-        manualHairLength && VALID_HAIR_LENGTHS.has(manualHairLength)
-          ? manualHairLength
+        typeof manualHairLength === 'string'
+          ? (manualHairLength as HairLengthCategory)
           : 'Médio';
 
       return NextResponse.json(
@@ -106,11 +154,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!imageBase64) {
+    if (typeof imageBase64 !== 'string' || !imageBase64.trim()) {
       return NextResponse.json(
         {
           error:
-            'Nenhum quadro ao vivo da câmera foi recebido. Centralize o rosto no scanner Face ID e tente novamente.',
+            'Nenhum quadro ao vivo da câmera foi recebido. Centralize o rosto no scanner Face ID ou use o cálculo pelos seus dados.',
         },
         {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
@@ -121,7 +169,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'A leitura automática por inteligência artificial não está ativa neste ambiente no momento. Use o botão "Usar cálculo manual sem IA" abaixo.',
+            'A leitura Face ID por inteligência artificial não está configurada neste ambiente no momento. Use o cálculo pelos seus dados.',
         },
         {status: 503, headers: {'Cache-Control': 'no-store'}}
       );
@@ -132,22 +180,23 @@ export async function POST(req: NextRequest) {
       VIRTUAL_HAIRSTYLE_PRESETS[0];
 
     const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-    const detectedMimeMatch =
-      typeof imageBase64 === 'string'
-        ? imageBase64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/)
-        : null;
-    const resolvedMimeType = detectedMimeMatch?.[1] || mimeType || 'image/jpeg';
+    const detectedMimeMatch = imageBase64.match(
+      /^data:(image\/[a-zA-Z0-9.+-]+);base64,/
+    );
+    const resolvedMimeType =
+      detectedMimeMatch?.[1] ||
+      (typeof mimeType === 'string' ? mimeType : 'image/jpeg');
 
     if (!allowedMimeTypes.has(resolvedMimeType)) {
       return NextResponse.json(
-        {error: 'Formato de quadro de vídeo não suportado para análise.'},
+        {error: 'Formato de quadro da câmera não suportado para análise.'},
         {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
 
-    if (typeof imageBase64 !== 'string' || imageBase64.length > 2_800_000) {
+    if (imageBase64.length > 2_800_000) {
       return NextResponse.json(
-        {error: 'Quadro de vídeo excede o tamanho máximo permitido para leitura.'},
+        {error: 'Quadro capturado excede o tamanho máximo permitido para leitura.'},
         {status: 413, headers: {'Cache-Control': 'no-store'}}
       );
     }
@@ -157,7 +206,7 @@ export async function POST(req: NextRequest) {
       .trim();
     if (!cleanBase64 || cleanBase64.length < 32) {
       return NextResponse.json(
-        {error: 'Quadro de vídeo inválido ou vazio para leitura Face ID.'},
+        {error: 'Quadro inválido ou vazio para leitura Face ID.'},
         {status: 400, headers: {'Cache-Control': 'no-store'}}
       );
     }
@@ -172,26 +221,24 @@ export async function POST(req: NextRequest) {
     });
 
     const promptText = `Você é um especialista sênior em visagismo masculino, tricologia visual e barbearia técnica.
-Analise RIGOROSAMENTE a leitura ao vivo da câmera (Face ID) do cliente para avaliar o corte "${preset.name}" (${preset.subtitle}).
+Analise RIGOROSAMENTE a leitura Face ID do cliente para avaliar em DADOS OBJETIVOS o corte "${preset.name}" (${preset.subtitle}).
 
-INSTRUÇÕES CRÍTICAS DE HONESTIDADE E PRECISÃO (NUNCA INVENTE OU ADIVINHE DADOS FALSOS):
-1. Verifique primeiro se há uma pessoa com cabeça e cabelo suficientemente visíveis (sem boné/touca cobrindo tudo, sem escuridão extrema). Se não estiver claro, marque imageQualityOk=false e explique exatamente o que ajustar em imageQualityMessage.
-2. Analise visualmente no frame ao vivo:
-   - Formato real da cabeça e do rosto (Oval, Quadrado, Redondo, Diamante, Triangular ou Alongado) e geometria craniana (cranialGeometry: largura das têmporas, topo/coroa, projeção da testa e mandíbula).
-   - Tipo real de cabelo visível (detectedHairType: Liso, Ondulado, Cacheado ou Crespo).
-   - Comprimento real atual visível (detectedHairLength: "Raspado / Muito curto", "Curto", "Médio" ou "Longo"), observando topo, laterais e entradas/linha frontal.
-   - Barba atual (beardObservation) — especialmente importante se o estilo envolve barba.
-3. Faça um CÁLCULO REAL DE COMPATIBILIDADE (0 a 100) considerando o estilo "${preset.name}":
-   - headShapeFitScore: quanto esse corte equilibra as proporções reais do crânio e rosto da pessoa.
-   - hairTextureFitScore: quanto o tipo de fio real da pessoa (liso/ondulado/cacheado/crespo) sustenta o caimento natural desse corte.
-   - lengthSufficiencyScore: quanto o comprimento ATUAL do cabelo permite fazer esse corte hoje (ex.: se o cabelo está raspado e o cliente escolheu Corte na Tesoura, lengthSufficiencyScore deve ser BAIXO, ex: 20-40, e verdictStatus = "Exige crescimento prévio"!).
-   - overallScore: média ponderada coerente desses três fatores.
-   - riskWarning: seja 100% sincero sobre riscos reais ("para não dar ruim") — se o cabelo está curto demais, se há entradas, se o volume lateral pode alargar um rosto redondo, ou se o fio crespo/liso exige técnica específica. Se não houver risco relevante, deixe string vazia "".
-   - howItWillLookOnYou: descreva em detalhes reais como esse corte especificamente vai assentar na cabeça, contorno e fio dessa pessoa.
-   - suggestedAdjustments: lista de 2 a 3 ajustes técnicos concretos para o barbeiro adaptar o corte sem erro.
-   - betterAlternativeStyleId: se overallScore < 75, indique o ID alternativo mais adequado entre ('corte-degrade', 'corte-social', 'corte-tesoura', 'barba-desenhada', 'combo-corte-barba', 'corte-barba-sobrancelha'); caso contrário retorne "".
-4. Estime com precisão as coordenadas normalizadas (0.0 a 1.0) da cabeça para referência anatômica:
-   - centerX, topY (topo do crânio/cabelo), hairlineY (início da testa/raiz frontal), templeLeftX, templeRightX, earY (altura das orelhas), jawLeftX, jawRightX, chinY (base do queixo), widthRatio, e hairColorHex (cor hexadecimal real dos fios, ex: "#231B18").
+INSTRUÇÕES CRÍTICAS DE HONESTIDADE E PRECISÃO (NUNCA INVENTE DADOS):
+1. Verifique primeiro se há uma pessoa com rosto e cabelo suficientemente visíveis (sem boné/touca cobrindo tudo, sem escuridão extrema). Se não estiver visível o suficiente, marque imageQualityOk=false e explique claramente o que ajustar em imageQualityMessage.
+2. Analise visualmente no quadro:
+   - Formato do rosto (Oval, Quadrado, Redondo, Diamante, Triangular ou Alongado) e geometria craniana (cranialGeometry).
+   - Tipo de cabelo visível (detectedHairType: Liso, Ondulado, Cacheado ou Crespo).
+   - Comprimento atual visível (detectedHairLength: "Raspado / Muito curto", "Curto", "Médio" ou "Longo"), linha frontal/entradas (hairlineObservation), volume aparente (apparentVolume) e barba (beardObservation).
+3. Calcule se DÁ BOM CORTE OU NÃO (0 a 100) para o estilo "${preset.name}":
+   - headShapeFitScore: quanto esse corte equilibra o formato real do rosto e crânio.
+   - hairTextureFitScore: quanto o tipo de fio real sustenta esse corte.
+   - lengthSufficiencyScore: quanto o comprimento ATUAL permite fazer esse corte hoje (se estiver curto demais, dê nota baixa e verdictStatus = "Exige crescimento prévio").
+   - overallScore: média ponderada coerente desses 3 fatores.
+   - compatibilitySummary: resumo direto dizendo se dá bom corte ou não e por quê.
+   - riskWarning: seja 100% sincero sobre possíveis riscos (ex.: entradas, cabelo curto demais, laterais abrindo rosto redondo). Se não houver risco relevante, retorne string vazia "".
+   - howItWillLookOnYou: explique em texto objetivo como esse corte vai assentar nesse formato de rosto e tipo de fio.
+   - suggestedAdjustments: 2 a 3 ajustes técnicos objetivos para o barbeiro fazer.
+   - betterAlternativeStyleId: se overallScore < 75, indique o ID alternativo mais compatível entre ('corte-degrade', 'corte-social', 'corte-tesoura', 'barba-desenhada', 'combo-corte-barba', 'corte-barba-sobrancelha'); caso contrário retorne "".
 
 Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
 
@@ -257,17 +304,6 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
           items: {type: Type.STRING},
         },
         betterAlternativeStyleId: {type: Type.STRING},
-        centerX: {type: Type.NUMBER},
-        topY: {type: Type.NUMBER},
-        hairlineY: {type: Type.NUMBER},
-        templeLeftX: {type: Type.NUMBER},
-        templeRightX: {type: Type.NUMBER},
-        earY: {type: Type.NUMBER},
-        jawLeftX: {type: Type.NUMBER},
-        jawRightX: {type: Type.NUMBER},
-        chinY: {type: Type.NUMBER},
-        widthRatio: {type: Type.NUMBER},
-        hairColorHex: {type: Type.STRING},
       },
       required: [
         'imageQualityOk',
@@ -291,17 +327,6 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         'lengthSufficiencyScore',
         'verdictStatus',
         'suggestedAdjustments',
-        'centerX',
-        'topY',
-        'hairlineY',
-        'templeLeftX',
-        'templeRightX',
-        'earY',
-        'jawLeftX',
-        'jawRightX',
-        'chinY',
-        'widthRatio',
-        'hairColorHex',
       ],
     };
 
@@ -384,17 +409,6 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       riskWarning?: string;
       suggestedAdjustments?: string[];
       betterAlternativeStyleId?: string;
-      centerX?: number;
-      topY?: number;
-      hairlineY?: number;
-      templeLeftX?: number;
-      templeRightX?: number;
-      earY?: number;
-      jawLeftX?: number;
-      jawRightX?: number;
-      chinY?: number;
-      widthRatio?: number;
-      hairColorHex?: string;
     };
     try {
       parsed = JSON.parse(cleanedResponseText || '{}');
@@ -416,28 +430,6 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       'Exige crescimento prévio',
       'Risco estético — avalie alternativas',
     ]);
-
-    const centerX = clamp(parsed.centerX, 0.25, 0.75, 0.5);
-    const widthRatio = clamp(parsed.widthRatio, 0.24, 0.74, 0.44);
-    const halfW = widthRatio / 2;
-    const topY = clamp(parsed.topY, 0.03, 0.38, 0.14);
-    const hairlineY = clamp(parsed.hairlineY, topY + 0.04, 0.5, Math.max(0.24, topY + 0.08));
-    const chinY = clamp(parsed.chinY, Math.max(0.48, hairlineY + 0.24), 0.94, 0.72);
-    const earY = clamp(parsed.earY, hairlineY + 0.04, chinY - 0.08, 0.47);
-
-    const faceAlignment: FaceAlignmentMetrics = {
-      centerX,
-      topY,
-      hairlineY,
-      templeLeftX: clamp(parsed.templeLeftX, 0.1, centerX - 0.05, centerX - halfW),
-      templeRightX: clamp(parsed.templeRightX, centerX + 0.05, 0.9, centerX + halfW),
-      earY,
-      jawLeftX: clamp(parsed.jawLeftX, 0.14, centerX - 0.04, centerX - halfW * 0.88),
-      jawRightX: clamp(parsed.jawRightX, centerX + 0.04, 0.86, centerX + halfW * 0.88),
-      chinY,
-      widthRatio,
-      hairColorHex: sanitizeHexColor(parsed.hairColorHex),
-    };
 
     const validAlternative = VIRTUAL_HAIRSTYLE_PRESETS.some(
       (p) => p.id === parsed.betterAlternativeStyleId
@@ -472,27 +464,26 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       imageQualityMessage: parsed.imageQualityMessage || undefined,
       faceShape: safeFaceShape,
       cranialGeometry:
-        parsed.cranialGeometry ||
-        'Geometria craniana avaliada pela visão computacional.',
+        parsed.cranialGeometry || 'Geometria craniana avaliada pelo Face ID.',
       detectedHairType: safeHairType,
       detectedHairLength: safeHairLength,
       hairlineObservation:
-        parsed.hairlineObservation || 'Linha frontal analisada na foto.',
-      apparentVolume: parsed.apparentVolume || 'Volume avaliado pela textura visível.',
-      estimatedLength: parsed.estimatedLength || 'Comprimento estimado pela foto.',
-      visualTexture: parsed.visualTexture || 'Textura identificada na captura.',
-      facialProportions: parsed.facialProportions || 'Proporções faciais medidas.',
+        parsed.hairlineObservation || 'Linha frontal avaliada pela leitura Face ID.',
+      apparentVolume: parsed.apparentVolume || 'Volume avaliado pela textura dos fios.',
+      estimatedLength: parsed.estimatedLength || safeHairLength,
+      visualTexture: parsed.visualTexture || `Fio ${safeHairType.toLowerCase()}.`,
+      facialProportions: parsed.facialProportions || `Rosto ${safeFaceShape.toLowerCase()}.`,
       beardObservation: parsed.beardObservation || 'Contorno facial verificado.',
       compatibilityLabel: safeCompatibilityLabel,
       compatibilitySummary:
-        parsed.compatibilitySummary || 'Análise visual concluída com sucesso.',
+        parsed.compatibilitySummary || 'Leitura Face ID concluída com sucesso.',
       howItWillLookOnYou:
         parsed.howItWillLookOnYou ||
         parsed.compatibilitySummary ||
-        'Encaixe avaliado considerando o formato da sua cabeça e tipo de cabelo.',
+        'Compatibilidade avaliada considerando o formato do seu rosto e tipo de cabelo.',
       barberRecommendation:
         parsed.barberRecommendation ||
-        'Mostre esta avaliação ao barbeiro para ajustar a altura do acabamento.',
+        'Mostre estes dados ao barbeiro para alinhar altura das laterais e acabamento.',
       calculations: {
         overallScore: clampInt(parsed.overallScore, 0, 100, 78),
         headShapeFitScore: clampInt(parsed.headShapeFitScore, 0, 100, 80),
@@ -513,7 +504,6 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
             ? validAlternative
             : undefined,
       },
-      faceAlignment,
       source: 'gemini_vision',
     };
 
@@ -527,7 +517,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       typeof error === 'object' && error !== null && 'status' in error
         ? Number((error as {status?: unknown}).status)
         : 0;
-    console.error('Virtual try-on AI error:', errStatus || 'unknown', rawMsg);
+    console.error('Face ID analysis AI error:', errStatus || 'unknown', rawMsg);
 
     if (
       errStatus === 429 ||
@@ -537,7 +527,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       return NextResponse.json(
         {
           error:
-            'Limite temporário de uso da IA atingido (cota). Aguarde alguns instantes e tente novamente ou use o cálculo manual abaixo.',
+            'Limite temporário de uso da IA atingido. Aguarde alguns instantes e tente novamente ou use o cálculo pelos seus dados.',
           code: 'GEMINI_QUOTA_EXCEEDED',
         },
         {status: 429, headers: {'Cache-Control': 'no-store'}}
@@ -555,7 +545,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       return NextResponse.json(
         {
           error:
-            'A credencial de IA configurada neste ambiente foi recusada pelo serviço (400/403). Verifique em Settings > Secrets ou use o cálculo manual abaixo.',
+            'A credencial de IA configurada neste ambiente foi recusada pelo serviço. Verifique em Settings > Secrets ou use o cálculo pelos seus dados.',
           code: 'GEMINI_AUTH_ERROR',
           upstreamStatus: errStatus || undefined,
         },
@@ -567,7 +557,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       return NextResponse.json(
         {
           error:
-            'Modelo de análise visual indisponível neste momento (404). Tente novamente ou use o cálculo manual abaixo.',
+            'Modelo de análise Face ID indisponível no momento. Tente novamente ou use o cálculo pelos seus dados.',
           code: 'GEMINI_MODEL_NOT_FOUND',
           upstreamStatus: errStatus || undefined,
         },
@@ -578,7 +568,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
     return NextResponse.json(
       {
         error:
-          'Não foi possível concluir a leitura ao vivo por inteligência artificial neste momento. Verifique sua conexão, ilumine bem o rosto e tente novamente.',
+          'Não foi possível concluir a leitura Face ID neste momento. Ilumine bem o rosto e tente novamente, ou calcule pelos seus dados.',
         code: rawMsg.includes('GEMINI_INVALID_JSON_RESPONSE')
           ? 'GEMINI_INVALID_JSON_RESPONSE'
           : 'GEMINI_UPSTREAM_ERROR',

@@ -340,7 +340,7 @@ export async function analyzeTryOnVision(params: {
 
   if (!ok || !data.analysis) {
     throw new Error(
-      data.error || 'Erro ao executar análise Face ID por inteligência artificial.'
+      data.error || 'Erro ao executar leitura Face ID por inteligência artificial.'
     );
   }
   return data.analysis;

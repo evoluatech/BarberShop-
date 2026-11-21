@@ -196,20 +196,6 @@ export type VisagismVerdict =
   | 'Exige crescimento prévio'
   | 'Risco estético — avalie alternativas';
 
-export interface FaceAlignmentMetrics {
-  centerX: number; // 0..1 relative horizontal center of the head/face
-  topY: number; // 0..1 relative top of head/crown
-  hairlineY: number; // 0..1 relative forehead hairline
-  templeLeftX: number; // 0..1 left temple edge
-  templeRightX: number; // 0..1 right temple edge
-  earY: number; // 0..1 ear height
-  jawLeftX: number; // 0..1 left jaw edge
-  jawRightX: number; // 0..1 right jaw edge
-  chinY: number; // 0..1 bottom of chin
-  widthRatio: number; // 0..1 relative head width vs frame width
-  hairColorHex: string; // sampled natural hair color hex
-}
-
 export interface VisagismCalculations {
   overallScore: number; // 0..100
   headShapeFitScore: number; // 0..100
@@ -222,7 +208,7 @@ export interface VisagismCalculations {
 }
 
 export interface VirtualTryOnAnalysis {
-  imageQualityOk: boolean;
+  imageQualityOk?: boolean;
   imageQualityMessage?: string;
   faceShape: FaceShape;
   cranialGeometry: string;
@@ -243,7 +229,5 @@ export interface VirtualTryOnAnalysis {
   howItWillLookOnYou: string;
   barberRecommendation: string;
   calculations: VisagismCalculations;
-  faceAlignment: FaceAlignmentMetrics;
-  fallbackNote?: string;
   source: 'gemini_vision' | 'manual_profile';
 }

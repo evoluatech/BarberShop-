@@ -72,25 +72,26 @@ export function PrivacyPolicyModal({open, onClose}: PrivacyPolicyModalProps) {
 
           <div className="space-y-1.5">
             <h3 className="font-display text-base font-semibold text-white">
-              2. Uso da Câmera e Leitura Face ID em Tempo Real
+              2. Uso da Câmera no Face ID (Sem Salvar Fotos)
             </h3>
             <p className="text-[#E5E5E5]/75">
-              O acesso à câmera frontal ocorre somente após sua autorização explícita. A
-              leitura é feita em tempo real por vídeo (estilo Face ID), sem exibir,
-              gravar ou armazenar fotos suas no aparelho ou em servidor. Você pode
-              desligar a câmera ou revogar a permissão a qualquer momento em Perfil.
+              A câmera é usada apenas após sua permissão para ler características como
+              formato do rosto, tipo de fio e comprimento atual. Assim que a leitura
+              termina, a câmera é encerrada e exibimos somente o resultado em dados — sem
+              salvar ou mostrar fotos e vídeos de simulação. Você pode revogar a
+              permissão a qualquer momento em Perfil.
             </p>
           </div>
 
           <div className="space-y-1.5">
             <h3 className="font-display text-base font-semibold text-white">
-              3. Precisão da Análise por IA
+              3. Precisão dos Dados de Visagismo
             </h3>
             <p className="text-[#E5E5E5]/75">
-              A inteligência artificial analisa o formato da cabeça e rosto, tipo de fio
-              e comprimento visíveis na leitura para calcular a compatibilidade e
-              alertar sobre riscos estéticos. Converse com nossos barbeiros para
-              confirmar o acabamento ideal na cadeira.
+              A análise calcula a compatibilidade técnica do corte com o formato do seu
+              rosto e tipo de cabelo identificados, apontando se o corte combina e o que
+              ajustar. Converse com nossos barbeiros para confirmar os detalhes na
+              cadeira.
             </p>
           </div>
 

@@ -8,23 +8,24 @@ const STORAGE_KEY = 'barber_shop_camera_pref_v1';
 const CHANGE_EVENT = 'barber-shop-camera-pref-change';
 
 function subscribe(callback: () => void) {
-  window.addEventListener('storage', callback);
+  if (typeof window === 'undefined') return () => {};
   window.addEventListener(CHANGE_EVENT, callback);
+  window.addEventListener('storage', callback);
   return () => {
-    window.removeEventListener('storage', callback);
     window.removeEventListener(CHANGE_EVENT, callback);
+    window.removeEventListener('storage', callback);
   };
 }
 
 function getSnapshot(): CameraPermissionPreference {
   if (typeof window === 'undefined') return 'unset';
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === 'granted' || raw === 'denied') return raw;
-    return 'unset';
+    const val = window.localStorage.getItem(STORAGE_KEY);
+    if (val === 'granted' || val === 'denied') return val;
   } catch {
-    return 'unset';
+    // Ignore storage errors
   }
+  return 'unset';
 }
 
 function getServerSnapshot(): CameraPermissionPreference {
@@ -34,24 +35,11 @@ function getServerSnapshot(): CameraPermissionPreference {
 export function setCameraPermissionPreference(pref: CameraPermissionPreference) {
   if (typeof window === 'undefined') return;
   try {
-    if (pref === 'unset') {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(STORAGE_KEY, pref);
-    }
-    window.dispatchEvent(new Event(CHANGE_EVENT));
+    window.localStorage.setItem(STORAGE_KEY, pref);
   } catch {
-    // Ignore storage quota errors
+    // Ignore storage errors
   }
-}
-
-export function isEmbeddedInIframe(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return window.self !== window.top;
-  } catch {
-    return true;
-  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
 export async function requestCameraStreamWithFallback(
@@ -62,9 +50,8 @@ export async function requestCameraStreamWithFallback(
     !navigator.mediaDevices ||
     !navigator.mediaDevices.getUserMedia
   ) {
-    throw new DOMException(
-      'getUserMedia indisponível neste contexto',
-      'NotSupportedError'
+    throw new Error(
+      'A câmera não está disponível neste navegador ou o endereço não está em HTTPS.'
     );
   }
 
@@ -72,13 +59,19 @@ export async function requestCameraStreamWithFallback(
     {
       video: {
         facingMode: {ideal: facingMode},
-        width: {ideal: 720},
+        width: {ideal: 960},
         height: {ideal: 960},
       },
       audio: false,
     },
-    {video: {facingMode}, audio: false},
-    {video: true, audio: false},
+    {
+      video: {facingMode},
+      audio: false,
+    },
+    {
+      video: true,
+      audio: false,
+    },
   ];
 
   let lastError: unknown;
@@ -87,11 +80,6 @@ export async function requestCameraStreamWithFallback(
       return await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
       lastError = err;
-      const name = err instanceof DOMException ? err.name : '';
-      // If user or iframe explicitly denied permission, do not retry further
-      if (name === 'NotAllowedError' || name === 'SecurityError') {
-        throw err;
-      }
     }
   }
   throw lastError;
@@ -101,54 +89,54 @@ export function describeCameraError(err: unknown): {
   message: string;
   isIframeBlocked: boolean;
 } {
-  const inIframe = isEmbeddedInIframe();
-  const name = err instanceof DOMException ? err.name : '';
+  const errName = err instanceof DOMException ? err.name : '';
+  const errMsg = err instanceof Error ? err.message : '';
+  const inIframe =
+    typeof window !== 'undefined' &&
+    (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
 
-  if (name === 'NotSupportedError') {
-    return {
-      isIframeBlocked: inIframe,
-      message: inIframe
-        ? 'O acesso à câmera está bloqueado dentro da pré-visualização do Google AI Studio. Abra o app em uma nova aba do navegador para usar a câmera.'
-        : 'Este navegador ou conexão (precisa ser HTTPS) não permite acesso direto à câmera.',
-    };
-  }
-
-  if (name === 'NotAllowedError' || name === 'SecurityError') {
+  if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
     if (inIframe) {
       return {
-        isIframeBlocked: true,
         message:
-          'A pré-visualização embutida do Google AI Studio bloqueou a câmera (política de iframe) ou a permissão foi recusada no navegador. Abra o aplicativo em uma nova aba direta para testar o Face ID com câmera.',
+          'A pré-visualização embutida bloqueou o acesso à câmera ou a permissão foi negada. Abra o app em uma nova aba para usar o Face ID ou preencha apenas os dados.',
+        isIframeBlocked: true,
       };
     }
     return {
-      isIframeBlocked: false,
       message:
-        'Permissão da câmera bloqueada no navegador. Toque no ícone de cadeado na barra de endereço para liberar a câmera e tente novamente.',
+        'Permissão da câmera recusada. Libere o acesso à câmera nas configurações do navegador ou calcule usando apenas seus dados.',
+      isIframeBlocked: false,
     };
   }
 
-  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+  if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
     return {
-      isIframeBlocked: false,
       message:
-        'Nenhuma câmera foi encontrada neste dispositivo. Conecte uma webcam ou teste no celular.',
+        'Nenhuma câmera encontrada neste dispositivo. Você pode fazer o cálculo selecionando apenas seus dados.',
+      isIframeBlocked: false,
     };
   }
 
-  if (name === 'NotReadableError' || name === 'TrackStartError') {
+  if (errName === 'NotReadableError' || errName === 'TrackStartError') {
     return {
-      isIframeBlocked: false,
       message:
-        'A câmera parece estar em uso por outro aplicativo ou aba. Feche outros apps de vídeo e tente novamente.',
+        'A câmera está ocupada por outro aplicativo no momento. Feche o outro app e tente novamente, ou use o cálculo por dados.',
+      isIframeBlocked: false,
     };
   }
 
   return {
+    message:
+      errMsg ||
+      'Não foi possível abrir a câmera agora. Você pode testar normalmente informando apenas seus dados.',
     isIframeBlocked: inIframe,
-    message: inIframe
-      ? 'Não foi possível iniciar a câmera dentro da pré-visualização embutida. Tente abrir o app em uma nova aba.'
-      : 'Não foi possível acessar a câmera no momento. Verifique as permissões do navegador.',
   };
 }
 
@@ -161,14 +149,17 @@ export function useCameraPermission() {
     isIframeBlocked?: boolean;
   }> => {
     try {
-      const stream = await requestCameraStreamWithFallback();
-      stream.getTracks().forEach((track) => track.stop());
+      const stream = await requestCameraStreamWithFallback('user');
+      stream.getTracks().forEach((t) => t.stop());
       setCameraPermissionPreference('granted');
       return {ok: true};
     } catch (err) {
       const info = describeCameraError(err);
-      // Only mark explicitly denied when it's a real browser permission denial outside iframe issues
-      if (!info.isIframeBlocked) {
+      if (
+        err instanceof DOMException &&
+        (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') &&
+        !info.isIframeBlocked
+      ) {
         setCameraPermissionPreference('denied');
       }
       return {
@@ -183,7 +174,7 @@ export function useCameraPermission() {
     setCameraPermissionPreference('denied');
   }, []);
 
-  const resetPreference = useCallback(() => {
+  const resetCameraPreference = useCallback(() => {
     setCameraPermissionPreference('unset');
   }, []);
 
@@ -191,6 +182,6 @@ export function useCameraPermission() {
     preference,
     allowCamera,
     denyCamera,
-    resetPreference,
+    resetCameraPreference,
   };
 }

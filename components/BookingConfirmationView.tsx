@@ -85,51 +85,51 @@ export function BookingConfirmationView({
 
       {/* Resumo detalhado */}
       <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-5 sm:p-6 divide-y divide-[#2B2B2B] text-sm">
-        <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Cliente</span>
-          <span className="font-semibold text-white text-right">
+        <div className="py-3 flex items-start justify-between gap-4">
+          <span className="text-[#E5E5E5]/65 shrink-0">Cliente</span>
+          <span className="font-semibold text-white text-right min-w-0 break-words">
             {appointment.clientName}
           </span>
         </div>
-        <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Serviço escolhido</span>
-          <span className="font-semibold text-white text-right">
+        <div className="py-3 flex items-start justify-between gap-4">
+          <span className="text-[#E5E5E5]/65 shrink-0">Serviço escolhido</span>
+          <span className="font-semibold text-white text-right min-w-0 break-words">
             {appointment.serviceName}
           </span>
         </div>
-        <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Profissional</span>
-          <span className="font-semibold text-white text-right">
+        <div className="py-3 flex items-start justify-between gap-4">
+          <span className="text-[#E5E5E5]/65 shrink-0">Profissional</span>
+          <span className="font-semibold text-white text-right min-w-0 break-words">
             {appointment.barberName}
           </span>
         </div>
-        <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Data</span>
-          <span className="font-semibold text-white capitalize text-right">
+        <div className="py-3 flex items-start justify-between gap-4">
+          <span className="text-[#E5E5E5]/65 shrink-0">Data</span>
+          <span className="font-semibold text-white capitalize text-right min-w-0 break-words">
             {formatDateLongPTBR(appointment.date)}
           </span>
         </div>
         <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Horário</span>
-          <span className="font-mono font-bold text-white tabular-nums">
+          <span className="text-[#E5E5E5]/65 shrink-0">Horário</span>
+          <span className="font-mono font-bold text-white tabular-nums shrink-0">
             {appointment.startTime} às {appointment.endTime}
           </span>
         </div>
-        <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Forma de pagamento</span>
-          <span className="font-semibold text-white text-right">
+        <div className="py-3 flex items-start justify-between gap-4">
+          <span className="text-[#E5E5E5]/65 shrink-0">Forma de pagamento</span>
+          <span className="font-semibold text-white text-right min-w-0 break-words">
             {formatPaymentMethodLabel(appointment.paymentMethod)}
           </span>
         </div>
         <div className="py-3 flex items-center justify-between gap-4">
-          <span className="text-[#E5E5E5]/65">Preço</span>
-          <span className="font-mono font-bold text-[#F7931E] tabular-nums">
+          <span className="text-[#E5E5E5]/65 shrink-0">Preço</span>
+          <span className="font-mono font-bold text-[#F7931E] tabular-nums shrink-0">
             {formatCurrencyBRL(appointment.priceCents)}
           </span>
         </div>
         <div className="py-3 flex items-start justify-between gap-4">
           <span className="text-[#E5E5E5]/65 shrink-0">Endereço</span>
-          <span className="text-[#E5E5E5]/90 text-right">
+          <span className="text-[#E5E5E5]/90 text-right min-w-0 break-words">
             {BARBERSHOP_INFO.address.fullFormatted}
           </span>
         </div>

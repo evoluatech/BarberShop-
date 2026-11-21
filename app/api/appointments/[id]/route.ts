@@ -90,8 +90,24 @@ export async function PATCH(
       );
     }
 
-    const body = await req.json();
-    const {clientId, action, preferredDate, preferredTime, reason} = body ?? {};
+    let body: Record<string, unknown>;
+    try {
+      const parsed = await req.json();
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return NextResponse.json(
+          {error: 'Corpo da requisição inválido para atualização.'},
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
+        );
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        {error: 'Requisição JSON inválida para atualização.'},
+        {status: 400, headers: {'Cache-Control': 'no-store'}}
+      );
+    }
+
+    const {clientId, action, preferredDate, preferredTime, reason} = body;
 
     if (typeof clientId === 'string' && clientId.trim() && clientId !== auth.uid) {
       return NextResponse.json(
@@ -110,12 +126,17 @@ export async function PATCH(
       );
     }
 
+    const safePreferredDate =
+      typeof preferredDate === 'string' ? preferredDate : undefined;
+    const safePreferredTime =
+      typeof preferredTime === 'string' ? preferredTime : undefined;
+
     if (action === 'request_reschedule') {
       if (
-        typeof preferredDate !== 'string' ||
-        !isValidISODate(preferredDate) ||
-        typeof preferredTime !== 'string' ||
-        !/^\d{2}:\d{2}$/.test(preferredTime)
+        !safePreferredDate ||
+        !isValidISODate(safePreferredDate) ||
+        !safePreferredTime ||
+        !/^\d{2}:\d{2}$/.test(safePreferredTime)
       ) {
         return NextResponse.json(
           {
@@ -130,8 +151,8 @@ export async function PATCH(
     const result = updateAppointmentStatus({
       id,
       action,
-      preferredDate,
-      preferredTime,
+      preferredDate: safePreferredDate,
+      preferredTime: safePreferredTime,
       reason: sanitizeTextField(reason, 300) || undefined,
     });
 
