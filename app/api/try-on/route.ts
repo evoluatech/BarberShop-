@@ -190,7 +190,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'A leitura Face ID por inteligência artificial não está configurada neste ambiente no momento. Use o cálculo pelos seus dados.',
+            'A leitura Face ID por IA não está disponível neste endereço (em links compartilhados o AI Studio não injeta a chave GEMINI_API_KEY). Abra no preview de desenvolvimento ou toque em "Ir para cálculo em dados agora".',
+          code: 'GEMINI_KEY_UNAVAILABLE',
         },
         {status: 503, headers: {'Cache-Control': 'no-store'}}
       );
@@ -380,9 +381,28 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         },
       });
 
+    const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> =>
+      new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(label)), ms);
+        promise.then(
+          (val) => {
+            clearTimeout(timer);
+            resolve(val);
+          },
+          (err) => {
+            clearTimeout(timer);
+            reject(err);
+          }
+        );
+      });
+
     let response;
     try {
-      response = await callVisionModel('gemini-4-hydrogen');
+      response = await withTimeout(
+        callVisionModel('gemini-4-hydrogen'),
+        18000,
+        'GEMINI_PRIMARY_TIMEOUT'
+      );
     } catch (firstErr) {
       const firstStatus =
         typeof firstErr === 'object' && firstErr !== null && 'status' in firstErr
@@ -393,16 +413,16 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         firstStatus === 503 ||
         firstStatus === 500 ||
         firstMsg.includes('UNAVAILABLE') ||
-        firstMsg.includes('503');
+        firstMsg.includes('503') ||
+        firstMsg.includes('GEMINI_PRIMARY_TIMEOUT');
       if (!isTransient) {
         throw firstErr;
       }
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      try {
-        response = await callVisionModel('gemini-4-hydrogen');
-      } catch {
-        response = await callVisionModel('gemini-3.1-flash-lite');
-      }
+      response = await withTimeout(
+        callVisionModel('gemini-3.1-flash-lite'),
+        18000,
+        'GEMINI_FALLBACK_TIMEOUT'
+      );
     }
 
     const cleanedResponseText = (response.text ?? '')

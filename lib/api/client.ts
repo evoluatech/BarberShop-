@@ -19,7 +19,7 @@ import {
 import {sanitizeAppointmentsList} from '@/lib/utils/security';
 
 const DEFAULT_TIMEOUT_MS = 12000;
-const VISION_TIMEOUT_MS = 28000;
+const VISION_TIMEOUT_MS = 45000;
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 let cachedCsrfToken: string | null = null;
