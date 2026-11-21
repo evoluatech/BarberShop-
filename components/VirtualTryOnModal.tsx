@@ -17,6 +17,7 @@ import {
   Sparkles,
   WifiOff,
   X,
+  XCircle,
 } from 'lucide-react';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {
@@ -148,18 +149,14 @@ function ScoreBar({
 }) {
   const safeVal = Math.max(0, Math.min(100, Math.round(value)));
   const barColor =
-    highlightColor ??
-    (safeVal >= 85
-      ? 'bg-emerald-500'
-      : safeVal >= 65
-        ? 'bg-[#F7931E]'
-        : 'bg-red-500');
+    highlightColor ?? (safeVal >= 75 ? 'bg-emerald-500' : 'bg-red-500');
+  const valueTextColor = safeVal >= 75 ? 'text-emerald-400' : 'text-red-400';
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="text-[#E5E5E5]/85 min-w-0 break-words">{label}</span>
-        <span className="font-mono font-bold text-white tabular-nums shrink-0">
+        <span className={`font-mono font-bold tabular-nums shrink-0 ${valueTextColor}`}>
           {safeVal}%
         </span>
       </div>
@@ -410,12 +407,16 @@ export function VirtualTryOnModal({
       )
     : undefined;
 
-  const verdictTone =
-    (analysis?.calculations.overallScore ?? 0) >= 85
-      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-      : (analysis?.calculations.overallScore ?? 0) >= 70
-        ? 'border-[#F7931E]/40 bg-[#F7931E]/10 text-[#F7931E]'
-        : 'border-amber-500/45 bg-amber-500/15 text-amber-200';
+  const isPositiveVerdict = Boolean(
+    analysis &&
+      analysis.calculations.overallScore >= 75 &&
+      analysis.calculations.verdictStatus !== 'Exige crescimento prévio' &&
+      analysis.calculations.verdictStatus !== 'Risco estético — avalie alternativas'
+  );
+
+  const verdictTone = isPositiveVerdict
+    ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+    : 'border-red-500/55 bg-red-500/15 text-red-300';
 
   return (
     <div
@@ -689,10 +690,23 @@ export function VirtualTryOnModal({
                   {scanError && (
                     <div
                       role="alert"
-                      className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200 flex items-start gap-2 leading-relaxed"
+                      className="rounded-xl border border-red-500/45 bg-red-500/10 p-3.5 text-xs text-red-200 space-y-2.5 leading-relaxed"
                     >
-                      <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                      <span className="min-w-0 break-words">{scanError}</span>
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                        <span className="min-w-0 break-words">{scanError}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          stopCamera();
+                          setStage('manual');
+                        }}
+                        className="min-h-[38px] inline-flex items-center gap-1.5 rounded-lg border border-[#F7931E]/50 bg-[#1C1C1C] hover:border-[#F7931E] px-3 py-1.5 text-xs font-semibold text-[#F7931E] transition-colors"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+                        <span>Ir para cálculo em dados agora</span>
+                      </button>
                     </div>
                   )}
 
@@ -832,14 +846,26 @@ export function VirtualTryOnModal({
             </section>
           )}
 
-          {/* STAGE 3: RESULTADO APENAS EM DADOS (sem fotos, vídeos ou prévias visuais) */}
+          {/* STAGE 3: RESULTADO APENAS EM DADOS (Verde = vai ficar legal | Vermelho = negativo) */}
           {stage === 'result' && analysis && (
-            <section className="rounded-2xl border border-[#2B2B2B] bg-[#111111] p-4 sm:p-5 space-y-5">
-              {/* Veredito principal: se dá bom corte ou não */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#2B2B2B]">
+            <section
+              className={`rounded-2xl border p-4 sm:p-5 space-y-5 ${
+                isPositiveVerdict
+                  ? 'border-emerald-500/45 bg-[#111111]'
+                  : 'border-red-500/45 bg-[#111111]'
+              }`}
+            >
+              {/* Banner principal Verde / Vermelho */}
+              <div
+                className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  isPositiveVerdict
+                    ? 'border-emerald-500/45 bg-emerald-500/10'
+                    : 'border-red-500/50 bg-red-500/10'
+                }`}
+              >
                 <div className="space-y-1.5 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-lg border border-[#2B2B2B] bg-[#1C1C1C] px-2.5 py-1 text-[11px] font-medium text-[#E5E5E5]">
+                    <span className="inline-flex items-center gap-1 rounded-lg border border-[#2B2B2B] bg-[#161616] px-2.5 py-1 text-[11px] font-medium text-[#E5E5E5]">
                       {analysis.source === 'gemini_vision' ? (
                         <>
                           <ScanFace className="h-3.5 w-3.5 text-[#F7931E]" />
@@ -855,30 +881,54 @@ export function VirtualTryOnModal({
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${verdictTone}`}
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                      <span>{analysis.calculations.verdictStatus}</span>
+                      {isPositiveVerdict ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                      )}
+                      <span>
+                        {isPositiveVerdict
+                          ? `Positivo · ${analysis.calculations.verdictStatus}`
+                          : `Negativo · ${analysis.calculations.verdictStatus}`}
+                      </span>
                     </span>
                   </div>
 
-                  <h3 className="font-display text-lg sm:text-xl font-bold text-white leading-snug break-words">
-                    {activePreset.name} · {analysis.compatibilityLabel}
+                  <h3
+                    className={`font-display text-lg sm:text-xl font-bold leading-snug break-words ${
+                      isPositiveVerdict ? 'text-emerald-300' : 'text-red-300'
+                    }`}
+                  >
+                    {isPositiveVerdict
+                      ? `${activePreset.name}: vai ficar legal!`
+                      : `${activePreset.name}: não fica legal neste perfil`}
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#E5E5E5]/85 leading-relaxed break-words">
+                  <p className="text-xs sm:text-sm text-[#E5E5E5]/90 leading-relaxed break-words">
                     {analysis.compatibilitySummary}
                   </p>
                 </div>
 
-                <div className="shrink-0 flex sm:flex-col items-center sm:items-end justify-between sm:justify-center rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] px-4 py-3">
-                  <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/60">
-                    Compatibilidade
+                <div
+                  className={`shrink-0 flex sm:flex-col items-center sm:items-end justify-between sm:justify-center rounded-xl border px-4 py-3 ${
+                    isPositiveVerdict
+                      ? 'border-emerald-500/45 bg-emerald-500/15'
+                      : 'border-red-500/50 bg-red-500/15'
+                  }`}
+                >
+                  <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/75">
+                    {isPositiveVerdict ? 'Deu bom' : 'Negativo'}
                   </span>
-                  <span className="font-mono text-3xl font-bold text-[#F7931E] tabular-nums">
+                  <span
+                    className={`font-mono text-3xl font-bold tabular-nums ${
+                      isPositiveVerdict ? 'text-emerald-400' : 'text-red-400'
+                    }`}
+                  >
                     {analysis.calculations.overallScore}%
                   </span>
                 </div>
               </div>
 
-              {/* Grid de Dados Identificados (Rosto, Cabelo, Comprimento, Linha frontal) */}
+              {/* Grid de Dados Identificados (Rosto, Formato da Cabeça, Cabelo, Comprimento) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] p-3.5 space-y-1 min-w-0">
                   <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/55">
@@ -888,13 +938,25 @@ export function VirtualTryOnModal({
                     {analysis.faceShape}
                   </p>
                   <p className="text-xs text-[#E5E5E5]/75 leading-relaxed break-words">
-                    {analysis.cranialGeometry}
+                    {analysis.facialProportions}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] p-3.5 space-y-1 min-w-0">
                   <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/55">
-                    Tipo de cabelo
+                    Formato da cabeça (crânio)
+                  </span>
+                  <p className="text-xs sm:text-sm font-medium text-white leading-relaxed break-words">
+                    {analysis.cranialGeometry}
+                  </p>
+                  <p className="text-xs text-[#E5E5E5]/70 leading-relaxed break-words">
+                    {analysis.beardObservation}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] p-3.5 space-y-1 min-w-0">
+                  <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/55">
+                    Cabelo (tipo e textura)
                   </span>
                   <p className="font-display text-base font-bold text-white">
                     {analysis.detectedHairType}
@@ -906,25 +968,13 @@ export function VirtualTryOnModal({
 
                 <div className="rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] p-3.5 space-y-1 min-w-0">
                   <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/55">
-                    Comprimento atual
+                    Comprimento e linha frontal
                   </span>
                   <p className="font-display text-base font-bold text-white">
                     {analysis.detectedHairLength}
                   </p>
-                  <p className="text-xs text-[#E5E5E5]/75 leading-relaxed break-words">
-                    {analysis.facialProportions}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] p-3.5 space-y-1 min-w-0">
-                  <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/55">
-                    Linha frontal & barba
-                  </span>
-                  <p className="text-xs text-[#E5E5E5]/85 leading-relaxed break-words">
+                  <p className="text-xs text-[#E5E5E5]/80 leading-relaxed break-words">
                     {analysis.hairlineObservation}
-                  </p>
-                  <p className="text-xs text-[#E5E5E5]/70 leading-relaxed break-words">
-                    {analysis.beardObservation}
                   </p>
                 </div>
               </div>

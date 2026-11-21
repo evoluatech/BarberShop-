@@ -164,7 +164,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const rawApiKey = process.env.GEMINI_API_KEY?.trim();
+    const apiKey =
+      rawApiKey && rawApiKey !== 'MY_GEMINI_API_KEY' ? rawApiKey : undefined;
     if (!apiKey) {
       return NextResponse.json(
         {
