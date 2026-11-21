@@ -9,7 +9,10 @@ import {
   VirtualTryOnAnalysis,
   VisagismVerdict,
 } from '@/lib/types/domain';
-import {computeManualVisagism} from '@/lib/utils/visagism';
+import {
+  processFaceIdData,
+  sanitizeFacialMeasurements,
+} from '@/lib/utils/face-id-processor';
 
 function clamp(num: unknown, min: number, max: number, fallback: number): number {
   if (typeof num !== 'number' || Number.isNaN(num)) return fallback;
@@ -48,6 +51,7 @@ export async function POST(req: NextRequest) {
     manualFaceShape?: unknown;
     manualHairType?: unknown;
     manualHairLength?: unknown;
+    facialMeasurements?: unknown;
   };
   try {
     const parsed = await req.json();
@@ -74,6 +78,7 @@ export async function POST(req: NextRequest) {
       manualFaceShape,
       manualHairType,
       manualHairLength,
+      facialMeasurements,
     } = body;
 
     if (
@@ -130,10 +135,23 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const safeFaceShape: FaceShape =
+      if (
+        facialMeasurements !== undefined &&
+        (typeof facialMeasurements !== 'object' ||
+          facialMeasurements === null ||
+          Array.isArray(facialMeasurements))
+      ) {
+        return NextResponse.json(
+          {error: 'Objeto de medidas faciais inválido.'},
+          {status: 400, headers: {'Cache-Control': 'no-store'}}
+        );
+      }
+
+      const cleanMeasurements = sanitizeFacialMeasurements(facialMeasurements);
+      const safeFaceShape: FaceShape | undefined =
         typeof manualFaceShape === 'string'
           ? (manualFaceShape as FaceShape)
-          : 'Oval';
+          : undefined;
       const safeHairType: HairType =
         typeof manualHairType === 'string' ? (manualHairType as HairType) : 'Ondulado';
       const safeHairLength: HairLengthCategory =
@@ -143,9 +161,10 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json(
         {
-          analysis: computeManualVisagism({
+          analysis: processFaceIdData({
             styleId: chosenStyleId,
             faceShape: safeFaceShape,
+            facialMeasurements: cleanMeasurements,
             hairType: safeHairType,
             hairLength: safeHairLength,
           }),
@@ -236,11 +255,12 @@ INSTRUÇÕES CRÍTICAS DE HONESTIDADE E PRECISÃO (NUNCA INVENTE DADOS):
    - hairTextureFitScore: quanto o tipo de fio real sustenta esse corte.
    - lengthSufficiencyScore: quanto o comprimento ATUAL permite fazer esse corte hoje (se estiver curto demais, dê nota baixa e verdictStatus = "Exige crescimento prévio").
    - overallScore: média ponderada coerente desses 3 fatores.
+   - binaryDiagnosis: "positivo" quando o corte vai ficar bom/legal no perfil (overallScore >= 75 e comprimento suficiente), ou "negativo" quando não fica legal / há risco estético / falta comprimento.
    - compatibilitySummary: resumo direto dizendo se dá bom corte ou não e por quê.
    - riskWarning: seja 100% sincero sobre possíveis riscos (ex.: entradas, cabelo curto demais, laterais abrindo rosto redondo). Se não houver risco relevante, retorne string vazia "".
    - howItWillLookOnYou: explique em texto objetivo como esse corte vai assentar nesse formato de rosto e tipo de fio.
    - suggestedAdjustments: 2 a 3 ajustes técnicos objetivos para o barbeiro fazer.
-   - betterAlternativeStyleId: se overallScore < 75, indique o ID alternativo mais compatível entre ('corte-degrade', 'corte-social', 'corte-tesoura', 'barba-desenhada', 'combo-corte-barba', 'corte-barba-sobrancelha'); caso contrário retorne "".
+   - betterAlternativeStyleId: se binaryDiagnosis = "negativo", indique o ID alternativo mais compatível entre ('corte-degrade', 'corte-social', 'corte-tesoura', 'barba-desenhada', 'combo-corte-barba', 'corte-barba-sobrancelha'); caso contrário retorne "".
 
 Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
 
@@ -291,6 +311,10 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         headShapeFitScore: {type: Type.NUMBER},
         hairTextureFitScore: {type: Type.NUMBER},
         lengthSufficiencyScore: {type: Type.NUMBER},
+        binaryDiagnosis: {
+          type: Type.STRING,
+          enum: ['positivo', 'negativo'],
+        },
         verdictStatus: {
           type: Type.STRING,
           enum: [
@@ -327,6 +351,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         'headShapeFitScore',
         'hairTextureFitScore',
         'lengthSufficiencyScore',
+        'binaryDiagnosis',
         'verdictStatus',
         'suggestedAdjustments',
       ],
@@ -407,6 +432,7 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
       headShapeFitScore?: number;
       hairTextureFitScore?: number;
       lengthSufficiencyScore?: number;
+      binaryDiagnosis?: 'positivo' | 'negativo';
       verdictStatus?: VisagismVerdict;
       riskWarning?: string;
       suggestedAdjustments?: string[];
@@ -461,6 +487,36 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         ? parsed.verdictStatus
         : 'Recomendado com adaptações';
 
+    const safeHeadScore = clampInt(parsed.headShapeFitScore, 0, 100, 80);
+    const safeTextureScore = clampInt(parsed.hairTextureFitScore, 0, 100, 78);
+    const safeLengthScore = clampInt(parsed.lengthSufficiencyScore, 0, 100, 75);
+    const rawOverallScore = clampInt(parsed.overallScore, 0, 100, 78);
+
+    const hasNegativeSignal =
+      parsed.binaryDiagnosis === 'negativo' ||
+      rawOverallScore < 75 ||
+      safeLengthScore < 55 ||
+      safeVerdict === 'Exige crescimento prévio' ||
+      safeVerdict === 'Risco estético — avalie alternativas';
+
+    const normalizedBinaryDiagnosis: 'positivo' | 'negativo' = hasNegativeSignal
+      ? 'negativo'
+      : 'positivo';
+
+    const normalizedOverallScore =
+      normalizedBinaryDiagnosis === 'negativo' && rawOverallScore >= 75
+        ? 68
+        : rawOverallScore;
+
+    const normalizedVerdictStatus: VisagismVerdict =
+      normalizedBinaryDiagnosis === 'negativo' &&
+      (safeVerdict === 'Altamente recomendado' ||
+        safeVerdict === 'Recomendado com adaptações')
+        ? safeLengthScore < 55
+          ? 'Exige crescimento prévio'
+          : 'Risco estético — avalie alternativas'
+        : safeVerdict;
+
     const analysis: VirtualTryOnAnalysis = {
       imageQualityOk: parsed.imageQualityOk !== false,
       imageQualityMessage: parsed.imageQualityMessage || undefined,
@@ -487,11 +543,14 @@ Responda exclusivamente em português do Brasil claro, técnico e honesto.`;
         parsed.barberRecommendation ||
         'Mostre estes dados ao barbeiro para alinhar altura das laterais e acabamento.',
       calculations: {
-        overallScore: clampInt(parsed.overallScore, 0, 100, 78),
-        headShapeFitScore: clampInt(parsed.headShapeFitScore, 0, 100, 80),
-        hairTextureFitScore: clampInt(parsed.hairTextureFitScore, 0, 100, 78),
-        lengthSufficiencyScore: clampInt(parsed.lengthSufficiencyScore, 0, 100, 75),
-        verdictStatus: safeVerdict,
+        diagnosticOutcome:
+          normalizedBinaryDiagnosis === 'positivo' ? 'sucesso' : 'falha',
+        binaryDiagnosis: normalizedBinaryDiagnosis,
+        overallScore: normalizedOverallScore,
+        headShapeFitScore: safeHeadScore,
+        hairTextureFitScore: safeTextureScore,
+        lengthSufficiencyScore: safeLengthScore,
+        verdictStatus: normalizedVerdictStatus,
         riskWarning:
           parsed.riskWarning && parsed.riskWarning.trim().length > 0
             ? parsed.riskWarning.trim()

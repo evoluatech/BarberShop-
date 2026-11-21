@@ -29,14 +29,19 @@ import {useOnlineStatus} from '@/hooks/useOnlineStatus';
 import {analyzeTryOnVision, calculateTryOnManual} from '@/lib/api/client';
 import {SERVICES, VIRTUAL_HAIRSTYLE_PRESETS} from '@/lib/data/seed';
 import {
+  CranialShapeCategory,
   FaceShape,
+  FacialMeasurements,
   HairLengthCategory,
   HairType,
   VirtualHairstyleId,
   VirtualTryOnAnalysis,
 } from '@/lib/types/domain';
 import {formatCurrencyBRL, formatDuration} from '@/lib/utils/formatters';
-import {computeManualVisagism} from '@/lib/utils/visagism';
+import {
+  processFaceIdData,
+  VALID_CRANIAL_SHAPES,
+} from '@/lib/utils/face-id-processor';
 
 interface VirtualTryOnModalProps {
   open: boolean;
@@ -202,6 +207,12 @@ export function VirtualTryOnModal({
   const [faceShape, setFaceShape] = useState<FaceShape>('Oval');
   const [hairType, setHairType] = useState<HairType>('Ondulado');
   const [hairLength, setHairLength] = useState<HairLengthCategory>('Médio');
+  const [useMeasurements, setUseMeasurements] = useState(false);
+  const [faceLengthCm, setFaceLengthCm] = useState('19.5');
+  const [cheekboneWidthCm, setCheekboneWidthCm] = useState('14.2');
+  const [jawWidthCm, setJawWidthCm] = useState('11.6');
+  const [foreheadWidthCm, setForeheadWidthCm] = useState('13.4');
+  const [cranialShape, setCranialShape] = useState<CranialShapeCategory>('Equilibrado');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -349,12 +360,28 @@ export function VirtualTryOnModal({
     }
   };
 
+  const buildOptionalMeasurements = (): FacialMeasurements | undefined => {
+    if (!useMeasurements) return undefined;
+    const parseOpt = (raw: string) => {
+      const n = Number(raw.replace(',', '.'));
+      return Number.isFinite(n) && n >= 6 && n <= 35 ? n : undefined;
+    };
+    return {
+      faceLengthCm: parseOpt(faceLengthCm),
+      cheekboneWidthCm: parseOpt(cheekboneWidthCm),
+      jawWidthCm: parseOpt(jawWidthCm),
+      foreheadWidthCm: parseOpt(foreheadWidthCm),
+      cranialShape,
+    };
+  };
+
   const handleCalculateManual = async (
     nextStyleId: VirtualHairstyleId = chosenStyleId,
     nextFace: FaceShape = faceShape,
     nextType: HairType = hairType,
     nextLength: HairLengthCategory = hairLength
   ) => {
+    const activeMeasurements = buildOptionalMeasurements();
     setAnalyzing(true);
     setScanError(null);
     try {
@@ -362,30 +389,35 @@ export function VirtualTryOnModal({
       if (isOnline) {
         nextResult = await calculateTryOnManual({
           styleId: nextStyleId,
-          manualFaceShape: nextFace,
+          ...(activeMeasurements ? {} : {manualFaceShape: nextFace}),
+          facialMeasurements: activeMeasurements,
           manualHairType: nextType,
           manualHairLength: nextLength,
         });
       } else {
-        nextResult = computeManualVisagism({
+        nextResult = processFaceIdData({
           styleId: nextStyleId,
-          faceShape: nextFace,
+          ...(activeMeasurements ? {} : {faceShape: nextFace}),
+          facialMeasurements: activeMeasurements,
           hairType: nextType,
           hairLength: nextLength,
         });
       }
       stopCamera();
+      setFaceShape(nextResult.faceShape);
       setChosenStyleId(nextStyleId);
       setAnalysis(nextResult);
       setStage('result');
     } catch {
-      const local = computeManualVisagism({
+      const local = processFaceIdData({
         styleId: nextStyleId,
-        faceShape: nextFace,
+        ...(activeMeasurements ? {} : {faceShape: nextFace}),
+        facialMeasurements: activeMeasurements,
         hairType: nextType,
         hairLength: nextLength,
       });
       stopCamera();
+      setFaceShape(local.faceShape);
       setChosenStyleId(nextStyleId);
       setAnalysis(local);
       setStage('result');
@@ -409,9 +441,8 @@ export function VirtualTryOnModal({
 
   const isPositiveVerdict = Boolean(
     analysis &&
-      analysis.calculations.overallScore >= 75 &&
-      analysis.calculations.verdictStatus !== 'Exige crescimento prévio' &&
-      analysis.calculations.verdictStatus !== 'Risco estético — avalie alternativas'
+      analysis.calculations.binaryDiagnosis === 'positivo' &&
+      analysis.calculations.overallScore >= 75
   );
 
   const verdictTone = isPositiveVerdict
@@ -830,6 +861,99 @@ export function VirtualTryOnModal({
                 </div>
               </div>
 
+              <div className="space-y-2.5 pt-1 border-t border-[#2B2B2B]">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-[#E5E5E5]">
+                  <input
+                    type="checkbox"
+                    checked={useMeasurements}
+                    onChange={(e) => setUseMeasurements(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#2B2B2B] bg-[#1C1C1C] accent-[#F7931E]"
+                  />
+                  <span>
+                    Calcular automaticamente pelas medidas faciais (cm) e formato da
+                    cabeça
+                  </span>
+                </label>
+
+                {useMeasurements && (
+                  <div className="rounded-xl border border-[#2B2B2B] bg-[#161616] p-3.5 space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <label className="space-y-1 text-[11px] text-[#E5E5E5]/75">
+                        <span className="block">Altura do rosto (cm)</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="6"
+                          max="35"
+                          value={faceLengthCm}
+                          onChange={(e) => setFaceLengthCm(e.target.value)}
+                          className="w-full min-h-[38px] rounded-lg border border-[#2B2B2B] bg-[#111111] px-2.5 text-xs text-white focus:border-[#F7931E] focus:outline-none"
+                        />
+                      </label>
+                      <label className="space-y-1 text-[11px] text-[#E5E5E5]/75">
+                        <span className="block">Largura maçãs (cm)</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="6"
+                          max="35"
+                          value={cheekboneWidthCm}
+                          onChange={(e) => setCheekboneWidthCm(e.target.value)}
+                          className="w-full min-h-[38px] rounded-lg border border-[#2B2B2B] bg-[#111111] px-2.5 text-xs text-white focus:border-[#F7931E] focus:outline-none"
+                        />
+                      </label>
+                      <label className="space-y-1 text-[11px] text-[#E5E5E5]/75">
+                        <span className="block">Mandíbula (cm)</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="6"
+                          max="35"
+                          value={jawWidthCm}
+                          onChange={(e) => setJawWidthCm(e.target.value)}
+                          className="w-full min-h-[38px] rounded-lg border border-[#2B2B2B] bg-[#111111] px-2.5 text-xs text-white focus:border-[#F7931E] focus:outline-none"
+                        />
+                      </label>
+                      <label className="space-y-1 text-[11px] text-[#E5E5E5]/75">
+                        <span className="block">Testa (cm)</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="6"
+                          max="35"
+                          value={foreheadWidthCm}
+                          onChange={(e) => setForeheadWidthCm(e.target.value)}
+                          className="w-full min-h-[38px] rounded-lg border border-[#2B2B2B] bg-[#111111] px-2.5 text-xs text-white focus:border-[#F7931E] focus:outline-none"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="block text-[11px] text-[#E5E5E5]/75">
+                        Formato da cabeça (crânio)
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {VALID_CRANIAL_SHAPES.map((cranial) => (
+                          <button
+                            key={cranial}
+                            type="button"
+                            onClick={() => setCranialShape(cranial)}
+                            aria-pressed={cranialShape === cranial}
+                            className={`min-h-[36px] px-3 py-1 rounded-lg text-xs border transition-colors ${
+                              cranialShape === cranial
+                                ? 'border-[#F7931E] bg-[#F7931E] text-[#111111] font-semibold'
+                                : 'border-[#2B2B2B] bg-[#111111] text-[#E5E5E5] hover:border-[#F7931E]/50'
+                            }`}
+                          >
+                            {cranial}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
                 disabled={analyzing}
@@ -888,8 +1012,8 @@ export function VirtualTryOnModal({
                       )}
                       <span>
                         {isPositiveVerdict
-                          ? `Positivo · ${analysis.calculations.verdictStatus}`
-                          : `Negativo · ${analysis.calculations.verdictStatus}`}
+                          ? `Sucesso (Positivo) · ${analysis.calculations.verdictStatus}`
+                          : `Falha (Negativo) · ${analysis.calculations.verdictStatus}`}
                       </span>
                     </span>
                   </div>
@@ -916,7 +1040,7 @@ export function VirtualTryOnModal({
                   }`}
                 >
                   <span className="text-[11px] uppercase tracking-wide text-[#E5E5E5]/75">
-                    {isPositiveVerdict ? 'Deu bom' : 'Negativo'}
+                    {isPositiveVerdict ? 'Sucesso' : 'Falha'}
                   </span>
                   <span
                     className={`font-mono text-3xl font-bold tabular-nums ${

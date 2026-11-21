@@ -190,6 +190,20 @@ export type HairType = 'Liso' | 'Ondulado' | 'Cacheado' | 'Crespo';
 
 export type HairLengthCategory = 'Raspado / Muito curto' | 'Curto' | 'Médio' | 'Longo';
 
+export type CranialShapeCategory =
+  | 'Equilibrado'
+  | 'Topo alongado'
+  | 'Laterais largas'
+  | 'Occipital proeminente';
+
+export interface FacialMeasurements {
+  faceLengthCm?: number;
+  cheekboneWidthCm?: number;
+  jawWidthCm?: number;
+  foreheadWidthCm?: number;
+  cranialShape?: CranialShapeCategory;
+}
+
 export type VisagismVerdict =
   | 'Altamente recomendado'
   | 'Recomendado com adaptações'
@@ -197,10 +211,13 @@ export type VisagismVerdict =
   | 'Risco estético — avalie alternativas';
 
 export interface VisagismCalculations {
+  diagnosticOutcome: 'sucesso' | 'falha';
+  binaryDiagnosis: 'positivo' | 'negativo';
   overallScore: number; // 0..100
   headShapeFitScore: number; // 0..100
   hairTextureFitScore: number; // 0..100
   lengthSufficiencyScore: number; // 0..100
+  measurementSummary?: string;
   verdictStatus: VisagismVerdict;
   riskWarning?: string;
   suggestedAdjustments: string[];

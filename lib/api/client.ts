@@ -1,6 +1,7 @@
 import {
   Appointment,
   FaceShape,
+  FacialMeasurements,
   HairLengthCategory,
   HairType,
   PaymentMethod,
@@ -348,9 +349,10 @@ export async function analyzeTryOnVision(params: {
 
 export async function calculateTryOnManual(params: {
   styleId: VirtualHairstyleId;
-  manualFaceShape: FaceShape;
-  manualHairType: HairType;
-  manualHairLength: HairLengthCategory;
+  manualFaceShape?: FaceShape;
+  facialMeasurements?: FacialMeasurements;
+  manualHairType?: HairType;
+  manualHairLength?: HairLengthCategory;
 }): Promise<VirtualTryOnAnalysis> {
   const {ok, data} = await fetchJsonWithTimeout<{
     analysis?: VirtualTryOnAnalysis;
@@ -360,9 +362,12 @@ export async function calculateTryOnManual(params: {
     body: JSON.stringify({
       mode: 'manual',
       styleId: params.styleId,
-      manualFaceShape: params.manualFaceShape,
-      manualHairType: params.manualHairType,
-      manualHairLength: params.manualHairLength,
+      ...(params.manualFaceShape ? {manualFaceShape: params.manualFaceShape} : {}),
+      ...(params.facialMeasurements
+        ? {facialMeasurements: params.facialMeasurements}
+        : {}),
+      ...(params.manualHairType ? {manualHairType: params.manualHairType} : {}),
+      ...(params.manualHairLength ? {manualHairLength: params.manualHairLength} : {}),
     }),
   });
 
