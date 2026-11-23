@@ -1,7 +1,7 @@
 'use client';
 
 import {Check, Copy, ExternalLink, MapPin, Navigation, X} from 'lucide-react';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {BARBERSHOP_INFO} from '@/lib/data/seed';
 import {copyTextResilient} from '@/lib/utils/security';
 
@@ -12,6 +12,15 @@ interface MapLocationModalProps {
 
 export function MapLocationModal({open, onClose}: MapLocationModalProps) {
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -32,7 +41,13 @@ export function MapLocationModal({open, onClose}: MapLocationModalProps) {
     const ok = await copyTextResilient(BARBERSHOP_INFO.address.fullFormatted);
     setCopied(ok);
     if (ok) {
-      window.setTimeout(() => setCopied(false), 2200);
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyTimerRef.current = null;
+      }, 2200);
     }
   };
 

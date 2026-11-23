@@ -172,6 +172,7 @@ export function BookingFlowView({
     slots: TimeSlotAvailability[];
     isShopOpen: boolean;
     closedReason?: string;
+    fetchFailed?: boolean;
     openingHoursLabel: string;
   }>({
     key: '',
@@ -198,6 +199,7 @@ export function BookingFlowView({
   const slots = availabilityState.key === requestKey ? availabilityState.slots : [];
   const isShopOpen = availabilityState.isShopOpen;
   const closedReason = availabilityState.closedReason;
+  const fetchFailed = Boolean(availabilityState.fetchFailed);
   const openingHoursLabel = availabilityState.openingHoursLabel;
 
   // Fetch real availability whenever date, service, barber, auth, or online status changes
@@ -217,6 +219,7 @@ export function BookingFlowView({
           key: requestKey,
           isShopOpen: data.isShopOpen,
           closedReason: data.closedReason,
+          fetchFailed: false,
           openingHoursLabel: data.openingHoursLabel,
           slots: data.slots,
         });
@@ -227,6 +230,7 @@ export function BookingFlowView({
           key: requestKey,
           isShopOpen: true,
           closedReason: 'Não foi possível consultar os horários no momento.',
+          fetchFailed: true,
           openingHoursLabel: '',
           slots: [],
         });
@@ -735,13 +739,28 @@ export function BookingFlowView({
               <p className="text-sm font-medium text-white">
                 {closedReason || 'Nenhum horário disponível para esta data.'}
               </p>
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F7931E] text-sm font-semibold text-[#111111]"
-              >
-                Escolher outra data
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                {fetchFailed && (
+                  <button
+                    type="button"
+                    onClick={() => setSlotsRefreshNonce((n) => n + 1)}
+                    className="min-h-[44px] px-5 py-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] text-sm font-semibold text-[#111111] transition-colors"
+                  >
+                    Tentar novamente
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className={`min-h-[44px] px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                    fetchFailed
+                      ? 'border border-[#2B2B2B] bg-[#111111] text-white hover:border-[#F7931E]/60'
+                      : 'bg-[#F7931E] hover:bg-[#D97706] text-[#111111]'
+                  }`}
+                >
+                  Escolher outra data
+                </button>
+              </div>
             </div>
           ) : (
             <>

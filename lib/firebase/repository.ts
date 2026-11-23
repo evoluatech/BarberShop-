@@ -34,6 +34,7 @@ import {
 import {
   addMinutesToTime,
   isValidISODate,
+  isValidTimeHHMM,
   parseISODateLocal,
   timeToMinutes,
 } from '@/lib/utils/formatters';
@@ -456,14 +457,14 @@ export async function fetchFirestoreAvailabilitySlots(params: {
     const freeBarberIds: string[] = [];
     for (const barber of eligibleBarbers) {
       const barberLocks = busyLocks.filter((l) => l.barberId === barber.id);
-      const hasConflict = barberLocks.some((b) =>
-        intervalsOverlap(
-          slotStart,
-          slotEnd,
-          timeToMinutes(b.startTime),
-          timeToMinutes(b.endTime)
-        )
-      );
+      const hasConflict = barberLocks.some((b) => {
+        if (!isValidTimeHHMM(b.startTime) || !isValidTimeHHMM(b.endTime)) {
+          return false;
+        }
+        const bStart = timeToMinutes(b.startTime);
+        const bEnd = timeToMinutes(b.endTime);
+        return bStart < bEnd && intervalsOverlap(slotStart, slotEnd, bStart, bEnd);
+      });
       if (!hasConflict) {
         freeBarberIds.push(barber.id);
       }
@@ -560,8 +561,16 @@ export async function createFirestoreAppointment(input: {
     }
     const svcData = svcSnap.data();
     authoritativeServiceName = sanitizeTextField(svcData.name, 100) || localService.name;
-    authoritativePriceCents = Number(svcData.priceCents);
-    authoritativeDuration = Number(svcData.durationMinutes);
+    const rawPriceCents = Number(svcData.priceCents);
+    const rawDuration = Number(svcData.durationMinutes);
+    authoritativePriceCents =
+      Number.isFinite(rawPriceCents) && rawPriceCents > 0
+        ? Math.round(rawPriceCents)
+        : localService.priceCents;
+    authoritativeDuration =
+      Number.isFinite(rawDuration) && rawDuration > 0
+        ? Math.round(rawDuration)
+        : localService.durationMinutes;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, `services/${input.serviceId}`);
   }

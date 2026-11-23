@@ -1,4 +1,4 @@
-const CACHE_NAME = 'barber-shop-pwa-v5';
+const CACHE_NAME = 'barber-shop-pwa-v6';
 const PRECACHE_URLS = [
   '/',
   '/manifest.webmanifest',

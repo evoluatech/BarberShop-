@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Barber Shop — Agendamento e Estilo',
   description:
-    'Na Barber Shop, cada corte é pensado para valorizar o seu estilo. Veja serviços, preços, profissionais, simulação virtual e agende seu horário.',
+    'Na Barber Shop, cada corte é pensado para valorizar o seu estilo. Veja serviços, preços, profissionais, compatibilidade em dados e agende seu horário.',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,

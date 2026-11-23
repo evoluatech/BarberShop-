@@ -93,19 +93,38 @@ export function formatDuration(minutes: number): string {
   return `${h}h ${m}min`;
 }
 
+export function isValidTimeHHMM(timeStr: string): boolean {
+  if (typeof timeStr !== 'string' || !/^\d{2}:\d{2}$/.test(timeStr)) {
+    return false;
+  }
+  const [h, m] = timeStr.split(':').map(Number);
+  return Number.isInteger(h) && Number.isInteger(m) && h >= 0 && h <= 23 && m >= 0 && m <= 59;
+}
+
 export function timeToMinutes(timeStr: string): number {
+  if (!isValidTimeHHMM(timeStr)) {
+    return Number.NaN;
+  }
   const [h, m] = timeStr.split(':').map(Number);
   return h * 60 + m;
 }
 
 export function minutesToTime(totalMinutes: number): string {
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
+  if (!Number.isFinite(totalMinutes)) {
+    return '00:00';
+  }
+  const clamped = Math.max(0, Math.round(totalMinutes));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 export function addMinutesToTime(timeStr: string, durationMinutes: number): string {
-  return minutesToTime(timeToMinutes(timeStr) + durationMinutes);
+  const startMinutes = timeToMinutes(timeStr);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(durationMinutes)) {
+    return '00:00';
+  }
+  return minutesToTime(startMinutes + durationMinutes);
 }
 
 export function isValidISODate(dateISO: string): boolean {

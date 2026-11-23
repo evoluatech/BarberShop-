@@ -72,26 +72,25 @@ export function PrivacyPolicyModal({open, onClose}: PrivacyPolicyModalProps) {
 
           <div className="space-y-1.5">
             <h3 className="font-display text-base font-semibold text-white">
-              2. Uso da Câmera no Face ID (Sem Salvar Fotos)
+              2. Face ID em Dados (Sem Captura de Fotos ou Vídeo)
             </h3>
             <p className="text-[#E5E5E5]/75">
-              A câmera é usada apenas após sua permissão para ler características como
-              formato do rosto, tipo de fio e comprimento atual. Assim que a leitura
-              termina, a câmera é encerrada e exibimos somente o resultado em dados — sem
-              salvar ou mostrar fotos e vídeos de simulação. Você pode revogar a
-              permissão a qualquer momento em Perfil.
+              O diagnóstico de compatibilidade funciona exclusivamente com os dados que
+              você informa no formulário (formato do rosto, tipo de fio, comprimento e
+              medidas básicas opcionais). Nenhuma imagem, foto ou vídeo é capturada,
+              processada ou armazenada.
             </p>
           </div>
 
           <div className="space-y-1.5">
             <h3 className="font-display text-base font-semibold text-white">
-              3. Precisão dos Dados de Visagismo
+              3. Critérios Técnicos de Visagismo
             </h3>
             <p className="text-[#E5E5E5]/75">
-              A análise calcula a compatibilidade técnica do corte com o formato do seu
-              rosto e tipo de cabelo identificados, apontando se o corte combina e o que
-              ajustar. Converse com nossos barbeiros para confirmar os detalhes na
-              cadeira.
+              O sistema calcula localmente a compatibilidade do corte escolhido com o
+              formato do rosto e o tipo de cabelo informados, exibindo um retorno
+              objetivo positivo (verde) ou negativo (vermelho). Converse com nossos
+              barbeiros para confirmar os detalhes na cadeira.
             </p>
           </div>
 

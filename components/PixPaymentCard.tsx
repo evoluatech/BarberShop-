@@ -1,7 +1,7 @@
 'use client';
 
 import {Check, Copy, QrCode} from 'lucide-react';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {PixDetails} from '@/lib/types/domain';
 import {formatCurrencyBRL, generatePixCopyPasteCode} from '@/lib/utils/formatters';
 import {copyTextResilient} from '@/lib/utils/security';
@@ -20,6 +20,15 @@ export function PixPaymentCard({
   subtitle,
 }: PixPaymentCardProps) {
   const [copiedField, setCopiedField] = useState<'key' | 'code' | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
 
   const pixCopyPaste = useMemo(
     () =>
@@ -37,7 +46,13 @@ export function PixPaymentCard({
     const ok = await copyTextResilient(text);
     setCopiedField(ok ? field : null);
     if (ok) {
-      window.setTimeout(() => setCopiedField(null), 2200);
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedField(null);
+        copyTimerRef.current = null;
+      }, 2200);
     }
   };
 

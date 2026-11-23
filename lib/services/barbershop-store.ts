@@ -16,6 +16,7 @@ import {
 import {
   addMinutesToTime,
   isValidISODate,
+  isValidTimeHHMM,
   parseISODateLocal,
   timeToMinutes,
 } from '@/lib/utils/formatters';
@@ -191,14 +192,14 @@ export function computeAvailability(params: {
       const barberBookings = allAppointmentsOnDate.filter(
         (b) => b.barberId === barber.id
       );
-      const hasConflict = barberBookings.some((b) =>
-        intervalsOverlap(
-          slotStart,
-          slotEnd,
-          timeToMinutes(b.startTime),
-          timeToMinutes(b.endTime)
-        )
-      );
+      const hasConflict = barberBookings.some((b) => {
+        if (!isValidTimeHHMM(b.startTime) || !isValidTimeHHMM(b.endTime)) {
+          return false;
+        }
+        const bStart = timeToMinutes(b.startTime);
+        const bEnd = timeToMinutes(b.endTime);
+        return bStart < bEnd && intervalsOverlap(slotStart, slotEnd, bStart, bEnd);
+      });
       if (!hasConflict) {
         freeBarberIds.push(barber.id);
       }
@@ -266,16 +267,26 @@ export function createAppointment(input: {
     return {error: 'Profissional indisponível para este horário.', status: 400};
   }
 
+  if (!isValidTimeHHMM(input.startTime)) {
+    return {error: 'Horário selecionado inválido.', status: 400};
+  }
+
   const all = readStore();
   const existingCodes = new Set(all.map((a) => a.bookingCode));
   const nowISO = new Date().toISOString();
   let randomDigits = Math.floor(1000 + Math.random() * 9000);
-  while (existingCodes.has(`BO-${randomDigits}`)) {
+  let bookingCode = `BO-${randomDigits}`;
+  for (let attempt = 0; attempt < 100 && existingCodes.has(bookingCode); attempt++) {
     randomDigits = Math.floor(1000 + Math.random() * 9000);
+    bookingCode = `BO-${randomDigits}`;
   }
+  if (existingCodes.has(bookingCode)) {
+    bookingCode = `BO-${Date.now().toString().slice(-6)}`;
+  }
+  const slotLockId = `${assignedBarber.id}__${input.date}__${input.startTime.replace(':', '-')}`;
   const newAppointment: Appointment = {
     id: `apt-${Date.now()}-${randomDigits}`,
-    bookingCode: `BO-${randomDigits}`,
+    bookingCode,
     shopId: BARBERSHOP_INFO.id,
     clientId: input.clientId || 'client-demo',
     clientName: input.clientName.trim(),
@@ -291,7 +302,8 @@ export function createAppointment(input: {
     date: input.date,
     startTime: input.startTime,
     endTime: addMinutesToTime(input.startTime, service.durationMinutes),
-    notes: input.notes?.trim().slice(0, 500) || undefined,
+    slotLockId,
+    notes: input.notes?.trim().slice(0, 400) || undefined,
     paymentMethod: input.paymentMethod ?? 'pix',
     status: 'Confirmado',
     changeHistory: [

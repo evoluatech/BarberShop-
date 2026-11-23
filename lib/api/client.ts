@@ -157,7 +157,9 @@ async function fetchJsonWithTimeout<T>(
 ): Promise<{ok: boolean; status: number; data: T}> {
   const method = (options.method || 'GET').toUpperCase();
   const isMutating = MUTATING_METHODS.has(method);
-  const csrfToken = isMutating ? await resolveCsrfToken(retriedAuth) : null;
+  const csrfToken = isMutating
+    ? await resolveCsrfToken(retriedAuth && !cachedCsrfToken)
+    : null;
   const [idToken, expectedUid] = await Promise.all([
     apiAuthProvider.getIdToken().catch(() => null),
     Promise.resolve(apiAuthProvider.getExpectedUid()),

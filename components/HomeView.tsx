@@ -4,18 +4,13 @@ import Image from 'next/image';
 import {
   ArrowRight,
   Calendar,
-  Camera,
   Clock,
-  ExternalLink,
   MapPin,
   ScanFace,
   Scissors,
-  ShieldCheck,
   Star,
 } from 'lucide-react';
-import {useState} from 'react';
 import {PWAInstallButton} from '@/components/PWAControls';
-import {useCameraPermission} from '@/hooks/useCameraPermission';
 import {BARBERS, BARBERSHOP_INFO, CLIENT_REVIEWS, SERVICES} from '@/lib/data/seed';
 import {Barber, Service, VirtualHairstyleId} from '@/lib/types/domain';
 import {formatCurrencyBRL, formatDuration} from '@/lib/utils/formatters';
@@ -42,100 +37,9 @@ export function HomeView({
   onOpenTryOn,
 }: HomeViewProps) {
   const popularServices = SERVICES.filter((s) => s.popular).slice(0, 4);
-  const {preference: cameraPref, allowCamera, denyCamera} = useCameraPermission();
-  const [cameraRequesting, setCameraRequesting] = useState(false);
-  const [cameraFeedback, setCameraFeedback] = useState<{
-    message: string;
-    isIframeBlocked: boolean;
-  } | null>(null);
-
-  const handleAllowCameraEntry = async () => {
-    setCameraRequesting(true);
-    setCameraFeedback(null);
-    const result = await allowCamera();
-    setCameraRequesting(false);
-    if (!result.ok && result.error) {
-      setCameraFeedback({
-        message: result.error,
-        isIframeBlocked: Boolean(result.isIframeBlocked),
-      });
-    }
-  };
 
   return (
     <div className="space-y-8 sm:space-y-12 pb-8">
-      {/* Opção inicial de acesso à câmera para leitura Face ID */}
-      {(cameraPref === 'unset' || cameraFeedback) && (
-        <section
-          aria-label="Preferência de acesso à câmera"
-          className="rounded-2xl border border-[#F7931E]/40 bg-[#1C1C1C] p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
-        >
-          <div className="flex items-start gap-3 sm:gap-3.5 max-w-2xl min-w-0">
-            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-[#111111] border border-[#2B2B2B] flex items-center justify-center shrink-0">
-              <Camera className="h-5 w-5 text-[#F7931E]" />
-            </div>
-            <div className="space-y-1 min-w-0">
-              <h2 className="font-display text-base font-bold text-white leading-snug break-words">
-                Permitir acesso à câmera para leitura Face ID?
-              </h2>
-              <p className="text-xs sm:text-sm text-[#E5E5E5]/75 leading-relaxed break-words">
-                O Face ID lê pela câmera o formato do seu rosto, tipo de cabelo e
-                comprimento atual e exibe apenas o resultado em dados — sem exibir ou
-                salvar fotos ou vídeos do corte.
-              </p>
-              {cameraFeedback && (
-                <p className="text-xs text-amber-300 pt-1 leading-relaxed break-words">
-                  {cameraFeedback.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
-            {cameraFeedback?.isIframeBlocked && typeof window !== 'undefined' && (
-              <a
-                href={window.location.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-[360px]:col-span-2 sm:col-span-1 min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-4 py-2 text-xs sm:text-sm font-semibold text-[#111111] transition-colors text-center leading-snug"
-              >
-                <ExternalLink className="h-4 w-4 shrink-0" />
-                <span>Abrir em nova aba</span>
-              </a>
-            )}
-            <button
-              type="button"
-              disabled={cameraRequesting}
-              onClick={handleAllowCameraEntry}
-              className={`min-h-[44px] inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-colors text-center leading-snug disabled:opacity-60 ${
-                cameraFeedback?.isIframeBlocked
-                  ? 'border border-[#2B2B2B] bg-[#111111] text-white hover:border-[#F7931E]/60'
-                  : 'bg-[#F7931E] hover:bg-[#D97706] text-[#111111]'
-              }`}
-            >
-              <ShieldCheck className="h-4 w-4 shrink-0" />
-              <span>
-                {cameraRequesting
-                  ? 'Solicitando...'
-                  : cameraFeedback
-                    ? 'Tentar novamente'
-                    : 'Permitir câmera'}
-              </span>
-            </button>
-            <button
-              type="button"
-              disabled={cameraRequesting}
-              onClick={() => {
-                setCameraFeedback(null);
-                denyCamera();
-              }}
-              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-[#2B2B2B] bg-[#111111] hover:border-[#E5E5E5]/40 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-[#E5E5E5] transition-colors text-center leading-snug"
-            >
-              Não permitir
-            </button>
-          </div>
-        </section>
-      )}
 
       {/* Hero Banner */}
       <section className="relative overflow-hidden rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C]">
@@ -216,15 +120,15 @@ export function HomeView({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-6">
           <div className="space-y-2 max-w-2xl min-w-0">
             <p className="text-xs font-medium text-[#F7931E]">
-              Análise Face ID em Dados
+              Face ID · Diagnóstico em Dados
             </p>
             <h2 className="font-display text-xl sm:text-2xl font-bold text-white [text-wrap:balance]">
               Veja pelos seus dados se o corte combina com você
             </h2>
             <p className="text-sm text-[#E5E5E5]/75 leading-relaxed break-words">
-              O Face ID lê pela câmera o formato do seu rosto (ex.: oval, quadrado), tipo
-              de cabelo e comprimento atual para mostrar em dados objetivos se dá bom
-              corte ou não — sem exibir imagens ou vídeos simulados.
+              Informe o formato do seu rosto (ex.: oval, quadrado), tipo de cabelo,
+              comprimento atual e medidas básicas para receber na hora o retorno verde ou
+              vermelho de compatibilidade — sem usar câmera, fotos ou vídeos.
             </p>
           </div>
           <div className="shrink-0">
@@ -234,7 +138,7 @@ export function HomeView({
               className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#F7931E] hover:bg-[#D97706] px-5 sm:px-6 py-3 text-sm font-semibold text-[#111111] transition-colors text-center leading-snug"
             >
               <ScanFace className="h-4 w-4 shrink-0" />
-              <span>Fazer leitura Face ID</span>
+              <span>Avaliar corte em dados</span>
             </button>
           </div>
         </div>

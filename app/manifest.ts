@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Barber Shop',
     short_name: 'Barber Shop',
     description:
-      'Na Barber Shop, cada corte é pensado para valorizar o seu estilo. Consulte serviços, profissionais, simulação virtual e agende seu horário.',
+      'Na Barber Shop, cada corte é pensado para valorizar o seu estilo. Consulte serviços, profissionais, análise de compatibilidade em dados e agende seu horário.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
