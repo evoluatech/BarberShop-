@@ -228,6 +228,7 @@ export interface VirtualTryOnAnalysis {
   imageQualityOk?: boolean;
   imageQualityMessage?: string;
   faceShape: FaceShape;
+  detectedCranialShape?: CranialShapeCategory;
   cranialGeometry: string;
   detectedHairType: HairType;
   detectedHairLength: HairLengthCategory;
@@ -237,6 +238,8 @@ export interface VirtualTryOnAnalysis {
   visualTexture: string;
   facialProportions: string;
   beardObservation: string;
+  referenceComparison?: string;
+  matchedReferenceRules?: string[];
   compatibilityLabel:
     | 'Alta compatibilidade'
     | 'Boa compatibilidade'

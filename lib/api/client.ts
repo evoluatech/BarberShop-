@@ -19,7 +19,6 @@ import {
 import {sanitizeAppointmentsList} from '@/lib/utils/security';
 
 const DEFAULT_TIMEOUT_MS = 12000;
-const VISION_TIMEOUT_MS = 45000;
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 let cachedCsrfToken: string | null = null;
@@ -317,36 +316,6 @@ export async function updateClientAppointment(params: {
     throw new Error(data.error || 'Não foi possível atualizar o agendamento.');
   }
   return data.appointment;
-}
-
-export async function analyzeTryOnVision(params: {
-  styleId: VirtualHairstyleId;
-  imageBase64: string;
-  mimeType?: string;
-}): Promise<VirtualTryOnAnalysis> {
-  const {ok, data} = await fetchJsonWithTimeout<{
-    analysis?: VirtualTryOnAnalysis;
-    error?: string;
-  }>(
-    '/api/try-on',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        mode: 'vision',
-        styleId: params.styleId,
-        imageBase64: params.imageBase64,
-        mimeType: params.mimeType || 'image/jpeg',
-      }),
-    },
-    VISION_TIMEOUT_MS
-  );
-
-  if (!ok || !data.analysis) {
-    throw new Error(
-      data.error || 'Erro ao executar leitura Face ID por inteligência artificial.'
-    );
-  }
-  return data.analysis;
 }
 
 export async function calculateTryOnManual(params: {

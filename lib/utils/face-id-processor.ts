@@ -1,4 +1,5 @@
 import {VIRTUAL_HAIRSTYLE_PRESETS} from '@/lib/data/seed';
+import {STYLE_VISAGISM_REFERENCES} from '@/lib/data/visagism-references';
 import {
   CranialShapeCategory,
   FaceShape,
@@ -9,13 +10,13 @@ import {
   VirtualTryOnAnalysis,
   VisagismVerdict,
 } from '@/lib/types/domain';
+import {
+  avaliarVisagismoCompleto,
+  FORMATOS_CRANIO_VALIDOS,
+} from '@/lib/utils/visagismo';
 
-export const VALID_CRANIAL_SHAPES: readonly CranialShapeCategory[] = [
-  'Equilibrado',
-  'Topo alongado',
-  'Laterais largas',
-  'Occipital proeminente',
-];
+export const VALID_CRANIAL_SHAPES: readonly CranialShapeCategory[] =
+  FORMATOS_CRANIO_VALIDOS;
 
 const CRANIAL_SHAPE_SET = new Set<CranialShapeCategory>(VALID_CRANIAL_SHAPES);
 
@@ -82,178 +83,22 @@ const HAIR_TYPE_NOTES: Record<HairType, {volume: string; finishTip: string}> = {
   },
 };
 
-const FACE_SHAPE_SCORES: Record<VirtualHairstyleId, Record<FaceShape, number>> = {
-  'corte-degrade': {
-    Oval: 94,
-    Redondo: 91,
-    Quadrado: 89,
-    Diamante: 84,
-    Triangular: 82,
-    Alongado: 74,
-  },
-  'corte-social': {
-    Oval: 93,
-    Quadrado: 90,
-    Diamante: 88,
-    Alongado: 86,
-    Triangular: 84,
-    Redondo: 76,
-  },
-  'corte-tesoura': {
-    Diamante: 93,
-    Triangular: 91,
-    Oval: 92,
-    Alongado: 88,
-    Quadrado: 84,
-    Redondo: 72,
-  },
-  'barba-desenhada': {
-    Redondo: 93,
-    Oval: 92,
-    Triangular: 88,
-    Alongado: 84,
-    Quadrado: 85,
-    Diamante: 86,
-  },
-  'combo-corte-barba': {
-    Oval: 95,
-    Redondo: 92,
-    Quadrado: 91,
-    Diamante: 89,
-    Triangular: 87,
-    Alongado: 83,
-  },
-  'corte-barba-sobrancelha': {
-    Oval: 96,
-    Redondo: 93,
-    Quadrado: 92,
-    Diamante: 90,
-    Triangular: 88,
-    Alongado: 85,
-  },
-};
-
-const HAIR_TEXTURE_SCORES: Record<VirtualHairstyleId, Record<HairType, number>> = {
-  'corte-degrade': {
-    Liso: 88,
-    Ondulado: 93,
-    Cacheado: 95,
-    Crespo: 96,
-  },
-  'corte-social': {
-    Liso: 94,
-    Ondulado: 90,
-    Cacheado: 80,
-    Crespo: 74,
-  },
-  'corte-tesoura': {
-    Liso: 90,
-    Ondulado: 94,
-    Cacheado: 88,
-    Crespo: 78,
-  },
-  'barba-desenhada': {
-    Liso: 86,
-    Ondulado: 89,
-    Cacheado: 90,
-    Crespo: 91,
-  },
-  'combo-corte-barba': {
-    Liso: 90,
-    Ondulado: 93,
-    Cacheado: 94,
-    Crespo: 95,
-  },
-  'corte-barba-sobrancelha': {
-    Liso: 91,
-    Ondulado: 94,
-    Cacheado: 95,
-    Crespo: 95,
-  },
-};
-
-const HAIR_LENGTH_SCORES: Record<
-  VirtualHairstyleId,
-  Record<HairLengthCategory, number>
-> = {
-  'corte-degrade': {
-    'Raspado / Muito curto': 58,
-    Curto: 90,
-    Médio: 96,
-    Longo: 92,
-  },
-  'corte-social': {
-    'Raspado / Muito curto': 40,
-    Curto: 84,
-    Médio: 95,
-    Longo: 92,
-  },
-  'corte-tesoura': {
-    'Raspado / Muito curto': 25,
-    Curto: 62,
-    Médio: 94,
-    Longo: 96,
-  },
-  'barba-desenhada': {
-    'Raspado / Muito curto': 78,
-    Curto: 88,
-    Médio: 92,
-    Longo: 90,
-  },
-  'combo-corte-barba': {
-    'Raspado / Muito curto': 55,
-    Curto: 88,
-    Médio: 95,
-    Longo: 93,
-  },
-  'corte-barba-sobrancelha': {
-    'Raspado / Muito curto': 58,
-    Curto: 90,
-    Médio: 96,
-    Longo: 94,
-  },
-};
-
-const CRANIAL_SHAPE_ADJUSTMENT: Record<
-  CranialShapeCategory,
-  {
-    scoreDeltaByStyle: Partial<Record<VirtualHairstyleId, number>>;
-    cranialNote: string;
-    tip: string;
-  }
-> = {
+const CRANIAL_NOTES: Record<CranialShapeCategory, {cranialNote: string; tip: string}> = {
   Equilibrado: {
-    scoreDeltaByStyle: {},
     cranialNote: 'Estrutura craniana equilibrada entre parietal, topo e nuca.',
     tip: 'Seguir graduação natural acompanhando a curvatura parietal.',
   },
   'Topo alongado': {
-    scoreDeltaByStyle: {
-      'corte-degrade': -4,
-      'corte-social': 2,
-      'corte-tesoura': 3,
-    },
     cranialNote: 'Coroa e topo com projeção vertical mais alta.',
     tip: 'Controlar altura do topo e preservar leve corpo nas laterais.',
   },
   'Laterais largas': {
-    scoreDeltaByStyle: {
-      'corte-degrade': 4,
-      'combo-corte-barba': 2,
-      'corte-tesoura': -8,
-      'corte-social': -5,
-    },
     cranialNote: 'Parietais mais largos exigindo controle de volume lateral.',
-    tip: 'Subir levemente o degradê nas têmporas e afinar volume lateral.',
+    tip: 'Reduzir o peso nas têmporas com degradê limpo e evitar excesso lateral.',
   },
   'Occipital proeminente': {
-    scoreDeltaByStyle: {
-      'corte-degrade': 2,
-      'corte-tesoura': 2,
-      'corte-social': -3,
-    },
     cranialNote: 'Nuca/occipital proeminente requerendo transição bem graduada atrás.',
-    tip: 'Suavizar a transição na região da nuca sem marcar degraus na linha occipital.',
+    tip: 'Suavizar a transição na região da nuca na tesoura sem marcar degraus no osso occipital.',
   },
 };
 
@@ -355,7 +200,7 @@ export function deriveFaceShapeFromMeasurements(
 
 /**
  * Utilitário puro de processamento de dados para Face ID sem uso de imagens:
- * aceita medidas faciais e/ou tipo de cabelo e retorna diagnóstico binário técnico.
+ * usa o motor técnico unificado de visagismo para retornar diagnóstico e recomendações.
  */
 export function processFaceIdData(input: FaceIdDataInput): VirtualTryOnAnalysis {
   const preset =
@@ -367,79 +212,91 @@ export function processFaceIdData(input: FaceIdDataInput): VirtualTryOnAnalysis 
     ? deriveFaceShapeFromMeasurements(cleanMeasurements)
     : null;
 
-  const resolvedFaceShape: FaceShape =
-    derivedFromMetrics?.faceShape ?? input.faceShape ?? 'Oval';
   const resolvedHairType: HairType = input.hairType ?? 'Ondulado';
   const resolvedHairLength: HairLengthCategory = input.hairLength ?? 'Médio';
-  const cranialInfo = cleanMeasurements?.cranialShape
-    ? CRANIAL_SHAPE_ADJUSTMENT[cleanMeasurements.cranialShape]
-    : undefined;
 
-  const baseHeadScore = FACE_SHAPE_SCORES[preset.id][resolvedFaceShape];
-  const cranialDelta = cranialInfo?.scoreDeltaByStyle[preset.id] ?? 0;
-  const headShapeFitScore = Math.max(
-    0,
-    Math.min(100, baseHeadScore + cranialDelta)
-  );
-  const hairTextureFitScore = HAIR_TEXTURE_SCORES[preset.id][resolvedHairType];
-  const lengthSufficiencyScore = HAIR_LENGTH_SCORES[preset.id][resolvedHairLength];
+  const avaliacao = avaliarVisagismoCompleto({
+    styleId: preset.id,
+    tipoCabelo: resolvedHairType,
+    formatoRosto: derivedFromMetrics?.faceShape ?? input.faceShape ?? 'Oval',
+    formatoCabeca: cleanMeasurements?.cranialShape,
+    comprimentoCabelo: resolvedHairLength,
+    medidasBasicas: cleanMeasurements
+      ? {
+          alturaRostoCm: cleanMeasurements.faceLengthCm,
+          larguraMacasCm: cleanMeasurements.cheekboneWidthCm,
+          larguraMandibulaCm: cleanMeasurements.jawWidthCm,
+          larguraTestaCm: cleanMeasurements.foreheadWidthCm,
+          formatoCabeca: cleanMeasurements.cranialShape,
+        }
+      : undefined,
+  });
 
-  const overallScore = Math.round(
-    headShapeFitScore * 0.38 +
-      hairTextureFitScore * 0.34 +
-      lengthSufficiencyScore * 0.28
-  );
+  const resolvedFaceShape = avaliacao.formatoRostoResolvido;
+  const resolvedCranialShape = avaliacao.formatoCabecaResolvido;
+  const isSuccess = avaliacao.diagnostico.resultado === 'positivo';
+  const overallScore = isSuccess
+    ? Math.max(76, avaliacao.indiceGeral)
+    : Math.min(68, avaliacao.indiceGeral);
 
   let verdictStatus: VisagismVerdict = 'Altamente recomendado';
   let compatibilityLabel: VirtualTryOnAnalysis['compatibilityLabel'] =
     'Alta compatibilidade';
   let riskWarning: string | undefined;
 
-  if (lengthSufficiencyScore < 55) {
+  if (!isSuccess && resolvedHairLength === 'Raspado / Muito curto') {
     verdictStatus = 'Exige crescimento prévio';
     compatibilityLabel = 'Compatibilidade adaptável';
-    riskWarning = `Com o cabelo atualmente ${resolvedHairLength.toLowerCase()}, falta comprimento no topo para estruturar o ${preset.name}. Cortar agora pode deixá-lo curto demais; o ideal é aguardar de 3 a 5 semanas de crescimento.`;
-  } else if (overallScore < 75) {
+    riskWarning = avaliacao.motivo;
+  } else if (!isSuccess) {
     verdictStatus = 'Risco estético — avalie alternativas';
     compatibilityLabel = 'Baixa compatibilidade';
-    riskWarning = `Para rosto ${resolvedFaceShape.toLowerCase()} com fios ${resolvedHairType.toLowerCase()}, este corte sem adaptação pode acentuar largura lateral ou perder definição no caimento.`;
+    riskWarning = avaliacao.motivo;
   } else if (overallScore < 85) {
     verdictStatus = 'Recomendado com adaptações';
     compatibilityLabel = 'Boa compatibilidade';
   }
 
-  const isSuccess =
-    verdictStatus === 'Altamente recomendado' ||
-    verdictStatus === 'Recomendado com adaptações';
   const diagnosticOutcome: 'sucesso' | 'falha' = isSuccess ? 'sucesso' : 'falha';
   const binaryDiagnosis: 'positivo' | 'negativo' = isSuccess ? 'positivo' : 'negativo';
 
-  const betterAlternativeStyleId: VirtualHairstyleId | undefined =
-    !isSuccess || overallScore < 78
-      ? resolvedFaceShape === 'Redondo' || resolvedHairType === 'Crespo'
-        ? 'corte-degrade'
+  const betterAlternativeStyleId: VirtualHairstyleId | undefined = !isSuccess
+    ? resolvedHairType === 'Crespo' ||
+      resolvedFaceShape === 'Redondo' ||
+      resolvedCranialShape === 'Laterais largas'
+      ? 'corte-degrade'
+      : resolvedHairLength === 'Médio' || resolvedHairLength === 'Longo'
+        ? 'corte-tesoura'
         : 'corte-social'
-      : undefined;
+    : undefined;
 
   const faceInfo = FACE_SHAPE_GUIDANCE[resolvedFaceShape];
   const hairInfo = HAIR_TYPE_NOTES[resolvedHairType];
+  const cranialInfo = CRANIAL_NOTES[resolvedCranialShape];
   const involvesBeard =
     preset.id === 'barba-desenhada' ||
     preset.id === 'combo-corte-barba' ||
     preset.id === 'corte-barba-sobrancelha';
 
-  const cranialGeometryText = cranialInfo
-    ? `${cranialInfo.cranialNote} ${faceInfo.geometry}`
-    : faceInfo.geometry;
-
+  const cranialGeometryText = `${cranialInfo.cranialNote} ${faceInfo.geometry}`;
   const suggestedAdjustments = [
-    cranialInfo ? cranialInfo.tip : faceInfo.sideStrategy,
+    cranialInfo.tip,
     hairInfo.finishTip,
     faceInfo.hairlineTip,
   ];
 
+  const lengthSufficiencyScore =
+    resolvedHairLength === 'Raspado / Muito curto'
+      ? 35
+      : resolvedHairLength === 'Curto' && preset.id === 'corte-tesoura'
+        ? 44
+        : 90;
+
+  const styleRef = STYLE_VISAGISM_REFERENCES[preset.id];
+
   return {
     faceShape: resolvedFaceShape,
+    detectedCranialShape: resolvedCranialShape,
     cranialGeometry: cranialGeometryText,
     detectedHairType: resolvedHairType,
     detectedHairLength: resolvedHairLength,
@@ -453,16 +310,20 @@ export function processFaceIdData(input: FaceIdDataInput): VirtualTryOnAnalysis 
     beardObservation: involvesBeard
       ? `Alinhamento da linha da bochecha e pescoço ajustado para valorizar o formato ${resolvedFaceShape.toLowerCase()}.`
       : 'Serviço focado no corte; combine com barba desenhada se desejar definir mais o maxilar.',
+    referenceComparison: avaliacao.motivo,
+    matchedReferenceRules: isSuccess
+      ? styleRef.greenCriteria.slice(0, 2)
+      : [avaliacao.motivo, ...styleRef.redContraindications.slice(0, 1)],
     compatibilityLabel,
-    compatibilitySummary: `Diagnóstico ${diagnosticOutcome.toUpperCase()} (${overallScore}%): considerando rosto ${resolvedFaceShape.toLowerCase()}, fio ${resolvedHairType.toLowerCase()} e comprimento ${resolvedHairLength.toLowerCase()}, o ${preset.name} ${isSuccess ? 'combina com o seu perfil' : 'apresenta restrições para este perfil'}.`,
-    howItWillLookOnYou: `No seu perfil (rosto ${resolvedFaceShape.toLowerCase()} e cabelo ${resolvedHairType.toLowerCase()} ${resolvedHairLength.toLowerCase()}), o ${preset.name} apresenta este comportamento técnico: ${preset.finishNote} ${faceInfo.sideStrategy}`,
-    barberRecommendation: `Peça ao barbeiro para adaptar a altura das laterais ao seu rosto ${resolvedFaceShape.toLowerCase()} e finalizar respeitando o fio ${resolvedHairType.toLowerCase()}.`,
+    compatibilitySummary: `Diagnóstico ${diagnosticOutcome.toUpperCase()} (${overallScore}%): ${avaliacao.motivo}`,
+    howItWillLookOnYou: `No seu perfil (rosto ${resolvedFaceShape.toLowerCase()}, crânio ${resolvedCranialShape.toLowerCase()} e cabelo ${resolvedHairType.toLowerCase()} ${resolvedHairLength.toLowerCase()}), o ${preset.name} apresenta este comportamento técnico: ${preset.finishNote} ${avaliacao.motivo}`,
+    barberRecommendation: `Peça ao barbeiro para adaptar a altura das laterais ao seu rosto ${resolvedFaceShape.toLowerCase()} e crânio ${resolvedCranialShape.toLowerCase()}, respeitando o fio ${resolvedHairType.toLowerCase()}.`,
     calculations: {
       diagnosticOutcome,
       binaryDiagnosis,
       overallScore,
-      headShapeFitScore,
-      hairTextureFitScore,
+      headShapeFitScore: overallScore,
+      hairTextureFitScore: overallScore,
       lengthSufficiencyScore,
       measurementSummary: derivedFromMetrics?.measurementSummary,
       verdictStatus,
