@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: '/api/:path*',
+        source: '/api/((?!shop$).+)',
         headers: [
           {
             key: 'Cache-Control',

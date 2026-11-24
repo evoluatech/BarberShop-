@@ -3,6 +3,7 @@ import {
   extractBearerToken,
   verifyFirebaseBearerToken,
 } from '@/lib/server/firebase-auth';
+import {enforceRateLimit} from '@/lib/server/rate-limit';
 import {
   buildSecurityCookieOptions,
   createSignedCsrfToken,
@@ -19,6 +20,13 @@ import {
  * to the verified Firebase UID and 'client' system scope, eliminating cross-user conflicts.
  */
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'auth-session-post',
+    maxRequests: 150,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const bearerToken = extractBearerToken(req);
   if (!bearerToken) {
     return NextResponse.json(
@@ -108,6 +116,13 @@ export async function POST(req: NextRequest) {
  * Cleanly revokes the current user's session and rotates cookies back to an isolated guest session.
  */
 export async function DELETE(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'auth-session-delete',
+    maxRequests: 150,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const secure = isHttpsRequest(req.headers, req.nextUrl.protocol);
   const freshSid = generateRandomId(18);
   const guestSessionToken = await createSignedSessionToken(freshSid, 'client', 'client');

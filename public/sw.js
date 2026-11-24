@@ -1,4 +1,5 @@
-const CACHE_NAME = 'barber-shop-pwa-v6';
+const CACHE_NAME = 'barber-shop-pwa-v7';
+const MAX_STATIC_CACHE_ENTRIES = 80;
 const PRECACHE_URLS = [
   '/',
   '/manifest.webmanifest',
@@ -17,6 +18,25 @@ const PRECACHE_URLS = [
   '/images/service_beard_ritual_1794653292138.jpg',
   '/images/service_combo_finish_1794653292260.jpg',
 ];
+
+async function safeCachePut(request, response) {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response);
+    const keys = await cache.keys();
+    if (keys.length > MAX_STATIC_CACHE_ENTRIES + PRECACHE_URLS.length) {
+      const staleKeys = keys.filter(
+        (k) => !PRECACHE_URLS.includes(new URL(k.url).pathname)
+      );
+      if (staleKeys.length > MAX_STATIC_CACHE_ENTRIES) {
+        const toDelete = staleKeys.slice(0, staleKeys.length - MAX_STATIC_CACHE_ENTRIES);
+        await Promise.all(toDelete.map((k) => cache.delete(k)));
+      }
+    }
+  } catch {
+    // Ignore cache quota failures gracefully so mobile clients never freeze
+  }
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -60,8 +80,7 @@ self.addEventListener('fetch', (event) => {
       fetch(request)
         .then((response) => {
           if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            safeCachePut(request, response.clone());
           }
           return response;
         })
@@ -79,8 +98,7 @@ self.addEventListener('fetch', (event) => {
       fetch(request)
         .then((response) => {
           if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            safeCachePut(request, response.clone());
           }
           return response;
         })

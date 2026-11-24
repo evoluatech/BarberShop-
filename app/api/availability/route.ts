@@ -1,9 +1,17 @@
 import {NextRequest, NextResponse} from 'next/server';
+import {enforceRateLimit} from '@/lib/server/rate-limit';
 import {computeAvailability} from '@/lib/services/barbershop-store';
 import {isValidISODate} from '@/lib/utils/formatters';
 import {isSafeEntityId} from '@/lib/utils/security';
 
 export async function GET(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'availability',
+    maxRequests: 300,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const {searchParams} = new URL(req.url);
   const date = searchParams.get('date');
   const serviceId = searchParams.get('serviceId') ?? 'corte-degrade';

@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {VIRTUAL_HAIRSTYLE_PRESETS} from '@/lib/data/seed';
+import {enforceRateLimit} from '@/lib/server/rate-limit';
 import {
   FaceShape,
   HairLengthCategory,
@@ -31,6 +32,13 @@ const VALID_STYLE_IDS = new Set<VirtualHairstyleId>(
 );
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'try-on',
+    maxRequests: 150,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   let body: {
     styleId?: unknown;
     manualFaceShape?: unknown;

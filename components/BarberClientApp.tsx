@@ -106,6 +106,9 @@ export function BarberClientApp() {
   const [clientProfile, setClientProfile] = useState<ClientProfile>(GUEST_PROFILE);
 
   const activeUid = isVerifiedUser && user ? user.uid : null;
+  const userDisplayName = user?.displayName ?? null;
+  const userEmail = user?.email ?? null;
+  const lastSavedCacheSignatureRef = useRef<string>('');
 
   const activeProfile: ClientProfile =
     isVerifiedUser && firestoreProfile
@@ -173,8 +176,8 @@ export function BarberClientApp() {
     if (!authReady) return;
     let active = true;
     const baseFallback =
-      activeUid && user
-        ? createVerifiedBaseProfile(activeUid, user.displayName, user.email)
+      activeUid
+        ? createVerifiedBaseProfile(activeUid, userDisplayName, userEmail)
         : GUEST_PROFILE;
 
     Promise.resolve().then(() => {
@@ -228,7 +231,7 @@ export function BarberClientApp() {
     return () => {
       active = false;
     };
-  }, [authReady, activeUid, user]);
+  }, [authReady, activeUid, userDisplayName, userEmail]);
 
   const updateProfile = useCallback(
     (next: Partial<ClientProfile>) => {
@@ -270,25 +273,29 @@ export function BarberClientApp() {
     if (!authReady) return;
     let active = true;
 
-    if (isVerifiedUser && user) {
+    if (activeUid) {
       const unsubscribe = subscribeClientAppointments(
-        user.uid,
+        activeUid,
         (list) => {
           if (!active) return;
-          const ownOnly = list.filter((a) => a.clientId === user.uid);
+          const ownOnly = list.filter((a) => a.clientId === activeUid);
           setAppointments(ownOnly);
-          setResolvedAppointmentsUid(user.uid);
-          try {
-            window.localStorage.setItem(
-              getAppointmentsCacheKey(user.uid),
-              JSON.stringify(ownOnly)
-            );
-          } catch {
-            // Ignore storage failures
+          setResolvedAppointmentsUid(activeUid);
+          const signature = `${activeUid}:${ownOnly.length}:${ownOnly.map((a) => `${a.id}:${a.status}:${a.updatedAt}`).join('|')}`;
+          if (lastSavedCacheSignatureRef.current !== signature) {
+            lastSavedCacheSignatureRef.current = signature;
+            try {
+              window.localStorage.setItem(
+                getAppointmentsCacheKey(activeUid),
+                JSON.stringify(ownOnly)
+              );
+            } catch {
+              // Ignore storage failures
+            }
           }
         },
         () => {
-          if (active) setResolvedAppointmentsUid(user.uid);
+          if (active) setResolvedAppointmentsUid(activeUid);
         }
       );
 
@@ -300,13 +307,14 @@ export function BarberClientApp() {
 
     Promise.resolve().then(() => {
       if (!active) return;
+      lastSavedCacheSignatureRef.current = '';
       setAppointments([]);
       setResolvedAppointmentsUid(null);
     });
     return () => {
       active = false;
     };
-  }, [authReady, isVerifiedUser, user]);
+  }, [authReady, activeUid]);
 
   const confirmedAppointmentRef = useRef<Appointment | null>(null);
   useEffect(() => {
@@ -644,7 +652,7 @@ export function BarberClientApp() {
               initial={{opacity: 0, y: 6}}
               animate={{opacity: 1, y: 0}}
               exit={{opacity: 0, y: -6}}
-              transition={{duration: 0.18, ease: [0.16, 1, 0.3, 1]}}
+              transition={{duration: 0.12, ease: [0.16, 1, 0.3, 1]}}
             >
               {route === 'inicio' && (
                 <HomeView

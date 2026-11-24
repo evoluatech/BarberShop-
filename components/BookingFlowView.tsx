@@ -27,8 +27,10 @@ import {useOnlineStatus} from '@/hooks/useOnlineStatus';
 import {BARBERS, BARBERSHOP_INFO, SERVICES} from '@/lib/data/seed';
 import {fetchAvailabilitySlots} from '@/lib/api/client';
 import {
+  BusySlotLock,
+  computeAvailabilityFromBusyLocks,
   createFirestoreAppointment,
-  fetchFirestoreAvailabilitySlots,
+  subscribeFirestoreDateBusyLocks,
 } from '@/lib/firebase/repository';
 import {
   Appointment,
@@ -194,29 +196,66 @@ export function BookingFlowView({
     [selectedService]
   );
 
-  const requestKey = `${dateISO}:${serviceId}:${barberId}:${isVerifiedUser ? 'fb' : 'local'}:${slotsRefreshNonce}`;
-  const loadingSlots = availabilityState.key !== requestKey;
-  const slots = availabilityState.key === requestKey ? availabilityState.slots : [];
-  const isShopOpen = availabilityState.isShopOpen;
-  const closedReason = availabilityState.closedReason;
-  const fetchFailed = Boolean(availabilityState.fetchFailed);
-  const openingHoursLabel = availabilityState.openingHoursLabel;
+  const [liveLocksState, setLiveLocksState] = useState<{
+    key: string;
+    locks: BusySlotLock[];
+    fetchFailed: boolean;
+  }>({
+    key: '',
+    locks: [],
+    fetchFailed: false,
+  });
 
-  // Fetch real availability whenever date, service, barber, auth, or online status changes
+  const liveLocksKey = `${dateISO}:${slotsRefreshNonce}`;
+  const guestRequestKey = `${dateISO}:${serviceId}:${barberId}:${slotsRefreshNonce}`;
+
+  // Subscribe in real time ONLY on Step 4 when verified & online so 100+ concurrent clients
+  // and the Barber App see slot locks immediately with zero extra reads on service/barber change.
   useEffect(() => {
-    if (!isOnline) {
+    if (!isOnline || !isVerifiedUser || step !== 4) {
       return;
     }
     let active = true;
-    const loader = isVerifiedUser
-      ? fetchFirestoreAvailabilitySlots
-      : fetchAvailabilitySlots;
+    const targetKey = `${dateISO}:${slotsRefreshNonce}`;
+    const unsubscribe = subscribeFirestoreDateBusyLocks(
+      dateISO,
+      (locks) => {
+        if (!active) return;
+        setLiveLocksState({
+          key: targetKey,
+          locks,
+          fetchFailed: false,
+        });
+      },
+      () => {
+        if (!active) return;
+        setLiveLocksState({
+          key: targetKey,
+          locks: [],
+          fetchFailed: true,
+        });
+      }
+    );
 
-    loader({dateISO, serviceId, barberId})
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [dateISO, slotsRefreshNonce, isOnline, isVerifiedUser, step]);
+
+  // Guest fallback: fetch availability from /api/availability only when Step 4 is active
+  useEffect(() => {
+    if (!isOnline || isVerifiedUser || step !== 4) {
+      return;
+    }
+    let active = true;
+    const targetKey = guestRequestKey;
+
+    fetchAvailabilitySlots({dateISO, serviceId, barberId})
       .then((data) => {
         if (!active) return;
         setAvailabilityState({
-          key: requestKey,
+          key: targetKey,
           isShopOpen: data.isShopOpen,
           closedReason: data.closedReason,
           fetchFailed: false,
@@ -227,7 +266,7 @@ export function BookingFlowView({
       .catch(() => {
         if (!active) return;
         setAvailabilityState({
-          key: requestKey,
+          key: targetKey,
           isShopOpen: true,
           closedReason: 'Não foi possível consultar os horários no momento.',
           fetchFailed: true,
@@ -239,7 +278,49 @@ export function BookingFlowView({
     return () => {
       active = false;
     };
-  }, [dateISO, serviceId, barberId, requestKey, isOnline, isVerifiedUser]);
+  }, [dateISO, serviceId, barberId, guestRequestKey, isOnline, isVerifiedUser, step]);
+
+  const liveComputedAvailability = useMemo(() => {
+    if (!isVerifiedUser || liveLocksState.key !== liveLocksKey || liveLocksState.fetchFailed) {
+      return null;
+    }
+    return computeAvailabilityFromBusyLocks({
+      dateISO,
+      serviceId,
+      barberId,
+      busyLocks: liveLocksState.locks,
+    });
+  }, [isVerifiedUser, liveLocksState, liveLocksKey, dateISO, serviceId, barberId]);
+
+  const loadingSlots = isVerifiedUser
+    ? step === 4 && isOnline && liveLocksState.key !== liveLocksKey
+    : step === 4 && isOnline && availabilityState.key !== guestRequestKey;
+
+  const slots = isVerifiedUser
+    ? (liveComputedAvailability?.slots ?? [])
+    : availabilityState.key === guestRequestKey
+      ? availabilityState.slots
+      : [];
+
+  const isShopOpen = isVerifiedUser
+    ? liveLocksState.fetchFailed
+      ? true
+      : (liveComputedAvailability?.isShopOpen ?? true)
+    : availabilityState.isShopOpen;
+
+  const closedReason = isVerifiedUser
+    ? liveLocksState.fetchFailed
+      ? 'Não foi possível consultar os horários no momento.'
+      : liveComputedAvailability?.closedReason
+    : availabilityState.closedReason;
+
+  const fetchFailed = isVerifiedUser
+    ? Boolean(liveLocksState.key === liveLocksKey && liveLocksState.fetchFailed)
+    : Boolean(availabilityState.key === guestRequestKey && availabilityState.fetchFailed);
+
+  const openingHoursLabel = isVerifiedUser
+    ? (liveComputedAvailability?.openingHoursLabel ?? '')
+    : availabilityState.openingHoursLabel;
 
   const selectedBarberLabel = useMemo(() => {
     if (barberId === 'any') return 'Qualquer profissional disponível';

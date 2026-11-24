@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {resolveAuthenticatedClient} from '@/lib/server/firebase-auth';
+import {enforceRateLimit} from '@/lib/server/rate-limit';
 import {createAppointment, listAllAppointments} from '@/lib/services/barbershop-store';
 import {PaymentMethod} from '@/lib/types/domain';
 import {
@@ -17,6 +18,13 @@ const VALID_PAYMENT_METHODS: PaymentMethod[] = [
 ];
 
 export async function GET(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'appointments-read',
+    maxRequests: 180,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const auth = await resolveAuthenticatedClient(req);
   if (!auth.ok) {
     return NextResponse.json(
@@ -48,6 +56,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'appointments-write',
+    maxRequests: 120,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   try {
     const auth = await resolveAuthenticatedClient(req);
     if (!auth.ok) {

@@ -9,10 +9,10 @@ import {
   limit,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   Timestamp,
-  updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
@@ -27,6 +27,7 @@ import {FIREBASE_SYNC_PAUSED_MESSAGE} from '@/lib/firebase/sync-config';
 import {
   Appointment,
   AppointmentHistoryEntry,
+  AppointmentStatus,
   ClientProfile,
   PaymentMethod,
   TimeSlotAvailability,
@@ -42,6 +43,7 @@ import {sanitizeTextField} from '@/lib/utils/security';
 
 const ADMIN_BOOTSTRAP_EMAIL = 'evoluatechbr@gmail.com';
 const SAFE_ID_REGEX = /^[a-zA-Z0-9_-]{2,128}$/;
+const BOOKING_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const VALID_PAYMENT_METHODS: ReadonlySet<PaymentMethod> = new Set([
   'pix',
   'cartao_credito',
@@ -49,9 +51,88 @@ const VALID_PAYMENT_METHODS: ReadonlySet<PaymentMethod> = new Set([
   'dinheiro',
 ]);
 
+const SAO_PAULO_NOW_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+export interface BusySlotLock {
+  slotId: string;
+  barberId: string;
+  startTime: string;
+  endTime: string;
+}
+
+const BUSY_LOCKS_CACHE_TTL_MS = 5_000;
+const busyLocksCache = new Map<string, {locks: BusySlotLock[]; expiresAt: number}>();
+const inFlightBusyLocks = new Map<string, Promise<BusySlotLock[]>>();
+
+export function invalidateDateBusyLocksCache(dateISO?: string): void {
+  if (dateISO) {
+    busyLocksCache.delete(dateISO);
+    return;
+  }
+  busyLocksCache.clear();
+}
+
 function assertSafeId(value: string, fallback: string): string {
   const cleaned = sanitizeTextField(value, 128);
   return SAFE_ID_REGEX.test(cleaned) ? cleaned : fallback;
+}
+
+function generateCryptoHex(byteCount: number): string {
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.getRandomValues === 'function'
+  ) {
+    const bytes = new Uint8Array(byteCount);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return Math.random()
+    .toString(16)
+    .slice(2, 2 + byteCount * 2)
+    .padEnd(byteCount * 2, '0');
+}
+
+function generateRandomBookingCode(): string {
+  const len = 6;
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.getRandomValues === 'function'
+  ) {
+    const bytes = new Uint8Array(len);
+    globalThis.crypto.getRandomValues(bytes);
+    let out = '';
+    for (let i = 0; i < len; i++) {
+      out += BOOKING_CODE_ALPHABET[bytes[i] % BOOKING_CODE_ALPHABET.length];
+    }
+    return `BO-${out}`;
+  }
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    out +=
+      BOOKING_CODE_ALPHABET[Math.floor(Math.random() * BOOKING_CODE_ALPHABET.length)];
+  }
+  return `BO-${out}`;
+}
+
+function generateRandomIndex(maxExclusive: number): number {
+  if (maxExclusive <= 1) return 0;
+  if (
+    typeof globalThis.crypto !== 'undefined' &&
+    typeof globalThis.crypto.getRandomValues === 'function'
+  ) {
+    const arr = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(arr);
+    return arr[0] % maxExclusive;
+  }
+  return Math.floor(Math.random() * maxExclusive);
 }
 
 function timestampToISO(val: unknown): string {
@@ -66,10 +147,13 @@ function timestampToISO(val: unknown): string {
 
 function cleanHistoryEntry(entry: AppointmentHistoryEntry): AppointmentHistoryEntry {
   const clean: AppointmentHistoryEntry = {
-    id: assertSafeId(entry.id, `hist-${Date.now()}`),
+    id: assertSafeId(entry.id, `hist-${Date.now()}-${generateCryptoHex(2)}`),
     timestamp: sanitizeTextField(entry.timestamp, 40) || new Date().toISOString(),
-    actor: entry.actor,
-    action: sanitizeTextField(entry.action, 200),
+    actor:
+      entry.actor === 'cliente' || entry.actor === 'barbeiro' || entry.actor === 'sistema'
+        ? entry.actor
+        : 'cliente',
+    action: sanitizeTextField(entry.action, 200) || 'Atualização de agendamento',
     newStatus: entry.newStatus,
   };
   if (entry.previousStatus) {
@@ -107,8 +191,12 @@ export async function ensureAdminAndCatalogSeeded(user: User): Promise<void> {
 
   // Idempotently ensure authoritative services & barbers catalog exists in Firestore
   try {
-    const existingServicesSnap = await getDocs(collection(db, 'services'));
-    const existingBarbersSnap = await getDocs(collection(db, 'barbers'));
+    const existingServicesSnap = await getDocs(
+      query(collection(db, 'services'), limit(50))
+    );
+    const existingBarbersSnap = await getDocs(
+      query(collection(db, 'barbers'), limit(50))
+    );
     if (
       existingServicesSnap.size >= SERVICES.length &&
       existingBarbersSnap.size >= BARBERS.length
@@ -269,7 +357,7 @@ export async function syncUserProfileWithFirestore(
       );
     }
     try {
-      await updateDoc(userRef, updatePayload);
+      await setDoc(userRef, updatePayload, {merge: true});
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, userPath);
     }
@@ -346,16 +434,25 @@ function intervalsOverlap(
   return startA < endB && endA > startB;
 }
 
-export async function fetchFirestoreAvailabilitySlots(params: {
+export function computeAvailabilityFromBusyLocks(params: {
   dateISO: string;
   serviceId: string;
   barberId: string;
-}): Promise<{
+  busyLocks: BusySlotLock[];
+}): {
   isShopOpen: boolean;
   closedReason?: string;
   openingHoursLabel: string;
   slots: TimeSlotAvailability[];
-}> {
+} {
+  if (!isValidISODate(params.dateISO)) {
+    return {
+      isShopOpen: false,
+      closedReason: 'Data selecionada inválida.',
+      openingHoursLabel: 'Indisponível',
+      slots: [],
+    };
+  }
   const service = SERVICES.find((s) => s.id === params.serviceId) ?? SERVICES[0];
   const localDate = parseISODateLocal(params.dateISO);
   const dayOfWeek = localDate.getDay();
@@ -400,36 +497,23 @@ export async function fetchFirestoreAvailabilitySlots(params: {
     };
   }
 
-  if (!isFirebaseSyncEnabled || !db) {
-    throw new Error(FIREBASE_SYNC_PAUSED_MESSAGE);
-  }
-  let busyLocks: {barberId: string; startTime: string; endTime: string}[] = [];
-  try {
-    const snap = await getDocs(
-      query(collection(db, 'availabilitySlots'), where('date', '==', params.dateISO))
-    );
-    busyLocks = snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        barberId: String(data.barberId ?? ''),
-        startTime: String(data.startTime ?? ''),
-        endTime: String(data.endTime ?? ''),
-      };
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'availabilitySlots');
+  const locksByBarber = new Map<string, {start: number; end: number}[]>();
+  for (const lock of params.busyLocks) {
+    if (!isValidTimeHHMM(lock.startTime) || !isValidTimeHHMM(lock.endTime)) {
+      continue;
+    }
+    const start = timeToMinutes(lock.startTime);
+    const end = timeToMinutes(lock.endTime);
+    if (start >= end) continue;
+    const list = locksByBarber.get(lock.barberId);
+    if (list) {
+      list.push({start, end});
+    } else {
+      locksByBarber.set(lock.barberId, [{start, end}]);
+    }
   }
 
-  const now = new Date();
-  const spParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
+  const spParts = SAO_PAULO_NOW_FORMATTER.formatToParts(new Date());
   const partMap = Object.fromEntries(spParts.map((p) => [p.type, p.value]));
   const todayISO = `${partMap.year}-${partMap.month}-${partMap.day}`;
   const currentMinutesNow =
@@ -456,15 +540,10 @@ export async function fetchFirestoreAvailabilitySlots(params: {
 
     const freeBarberIds: string[] = [];
     for (const barber of eligibleBarbers) {
-      const barberLocks = busyLocks.filter((l) => l.barberId === barber.id);
-      const hasConflict = barberLocks.some((b) => {
-        if (!isValidTimeHHMM(b.startTime) || !isValidTimeHHMM(b.endTime)) {
-          return false;
-        }
-        const bStart = timeToMinutes(b.startTime);
-        const bEnd = timeToMinutes(b.endTime);
-        return bStart < bEnd && intervalsOverlap(slotStart, slotEnd, bStart, bEnd);
-      });
+      const barberLocks = locksByBarber.get(barber.id);
+      const hasConflict = barberLocks
+        ? barberLocks.some((b) => intervalsOverlap(slotStart, slotEnd, b.start, b.end))
+        : false;
       if (!hasConflict) {
         freeBarberIds.push(barber.id);
       }
@@ -483,6 +562,131 @@ export async function fetchFirestoreAvailabilitySlots(params: {
     openingHoursLabel: hoursConfig.displayText,
     slots,
   };
+}
+
+async function loadDateBusyLocks(
+  dateISO: string,
+  forceFresh = false
+): Promise<BusySlotLock[]> {
+  if (!isFirebaseSyncEnabled || !db) {
+    throw new Error(FIREBASE_SYNC_PAUSED_MESSAGE);
+  }
+  const activeDb = db;
+  const now = Date.now();
+  if (!forceFresh) {
+    const cached = busyLocksCache.get(dateISO);
+    if (cached && cached.expiresAt > now) {
+      return cached.locks;
+    }
+    const existingFlight = inFlightBusyLocks.get(dateISO);
+    if (existingFlight) {
+      return existingFlight;
+    }
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const snap = await getDocs(
+        query(
+          collection(activeDb, 'availabilitySlots'),
+          where('date', '==', dateISO),
+          limit(200)
+        )
+      );
+      const locks: BusySlotLock[] = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          slotId: d.id,
+          barberId: String(data.barberId ?? ''),
+          startTime: String(data.startTime ?? ''),
+          endTime: String(data.endTime ?? ''),
+        };
+      });
+      busyLocksCache.set(dateISO, {
+        locks,
+        expiresAt: Date.now() + BUSY_LOCKS_CACHE_TTL_MS,
+      });
+      return locks;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, 'availabilitySlots');
+    } finally {
+      inFlightBusyLocks.delete(dateISO);
+    }
+  })();
+
+  if (!forceFresh) {
+    inFlightBusyLocks.set(dateISO, fetchPromise);
+  }
+  return fetchPromise;
+}
+
+export function subscribeFirestoreDateBusyLocks(
+  dateISO: string,
+  onLocks: (locks: BusySlotLock[]) => void,
+  onFailure?: (err: Error) => void
+): () => void {
+  if (!isFirebaseSyncEnabled || !db || !isValidISODate(dateISO)) {
+    return () => {};
+  }
+  const q = query(
+    collection(db, 'availabilitySlots'),
+    where('date', '==', dateISO),
+    limit(200)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const locks: BusySlotLock[] = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          slotId: d.id,
+          barberId: String(data.barberId ?? ''),
+          startTime: String(data.startTime ?? ''),
+          endTime: String(data.endTime ?? ''),
+        };
+      });
+      busyLocksCache.set(dateISO, {
+        locks,
+        expiresAt: Date.now() + BUSY_LOCKS_CACHE_TTL_MS,
+      });
+      onLocks(locks);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'availabilitySlots');
+      } catch (wrapped) {
+        onFailure?.(wrapped instanceof Error ? wrapped : new Error(String(wrapped)));
+      }
+    }
+  );
+}
+
+export async function fetchFirestoreAvailabilitySlots(params: {
+  dateISO: string;
+  serviceId: string;
+  barberId: string;
+  forceFresh?: boolean;
+}): Promise<{
+  isShopOpen: boolean;
+  closedReason?: string;
+  openingHoursLabel: string;
+  slots: TimeSlotAvailability[];
+}> {
+  if (!isValidISODate(params.dateISO)) {
+    return {
+      isShopOpen: false,
+      closedReason: 'Data selecionada inválida.',
+      openingHoursLabel: 'Indisponível',
+      slots: [],
+    };
+  }
+  const busyLocks = await loadDateBusyLocks(params.dateISO, Boolean(params.forceFresh));
+  return computeAvailabilityFromBusyLocks({
+    dateISO: params.dateISO,
+    serviceId: params.serviceId,
+    barberId: params.barberId,
+    busyLocks,
+  });
 }
 
 export async function createFirestoreAppointment(input: {
@@ -509,6 +713,7 @@ export async function createFirestoreAppointment(input: {
       error: FIREBASE_SYNC_PAUSED_MESSAGE,
     };
   }
+  const activeDb = db;
   if (!input.user.emailVerified) {
     return {
       ok: false,
@@ -517,7 +722,7 @@ export async function createFirestoreAppointment(input: {
     };
   }
 
-  if (!isValidISODate(input.date) || !/^\d{2}:\d{2}$/.test(input.startTime)) {
+  if (!isValidISODate(input.date) || !isValidTimeHHMM(input.startTime)) {
     return {
       ok: false,
       status: 400,
@@ -539,46 +744,18 @@ export async function createFirestoreAppointment(input: {
     };
   }
 
-  // Check authoritative service document in Firestore (zero-trust price & duration)
   const localService = SERVICES.find((s) => s.id === input.serviceId);
   if (!localService) {
     return {ok: false, status: 400, error: 'Serviço selecionado não encontrado.'};
   }
 
-  let authoritativeServiceName = localService.name;
-  let authoritativePriceCents = localService.priceCents;
-  let authoritativeDuration = localService.durationMinutes;
-
-  try {
-    const svcSnap = await getDoc(doc(db, 'services', input.serviceId));
-    if (!svcSnap.exists()) {
-      return {
-        ok: false,
-        status: 400,
-        error:
-          'O catálogo oficial no banco ainda está sendo inicializado pelo administrador da barbearia.',
-      };
-    }
-    const svcData = svcSnap.data();
-    authoritativeServiceName = sanitizeTextField(svcData.name, 100) || localService.name;
-    const rawPriceCents = Number(svcData.priceCents);
-    const rawDuration = Number(svcData.durationMinutes);
-    authoritativePriceCents =
-      Number.isFinite(rawPriceCents) && rawPriceCents > 0
-        ? Math.round(rawPriceCents)
-        : localService.priceCents;
-    authoritativeDuration =
-      Number.isFinite(rawDuration) && rawDuration > 0
-        ? Math.round(rawDuration)
-        : localService.durationMinutes;
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, `services/${input.serviceId}`);
-  }
-
-  const availability = await fetchFirestoreAvailabilitySlots({
+  // Always force a fresh availability read before running the atomic transaction
+  const busyLocks = await loadDateBusyLocks(input.date, true);
+  const availability = computeAvailabilityFromBusyLocks({
     dateISO: input.date,
     serviceId: input.serviceId,
     barberId: input.barberId,
+    busyLocks,
   });
 
   if (!availability.isShopOpen) {
@@ -599,130 +776,238 @@ export async function createFirestoreAppointment(input: {
     };
   }
 
-  const assignedBarberId =
-    input.barberId === 'any' ? slot.availableBarberIds[0] : input.barberId;
-  const assignedBarber = BARBERS.find((b) => b.id === assignedBarberId);
-  if (!assignedBarber) {
-    return {
-      ok: false,
-      status: 400,
-      error: 'Profissional indisponível para este horário.',
-    };
+  // When 'any' barber is chosen, distribute concurrent load across free barbers
+  // and failover cleanly if another client wins the first barber concurrently.
+  let candidateBarberIds: string[];
+  if (input.barberId === 'any') {
+    const free = [...slot.availableBarberIds];
+    const startIdx = generateRandomIndex(free.length);
+    candidateBarberIds = [...free.slice(startIdx), ...free.slice(0, startIdx)];
+  } else {
+    candidateBarberIds = [input.barberId];
   }
-
-  const randomArr = new Uint32Array(1);
-  const randomDigits =
-    typeof globalThis.crypto !== 'undefined' &&
-    typeof globalThis.crypto.getRandomValues === 'function'
-      ? 1000 + (globalThis.crypto.getRandomValues(randomArr)[0] % 9000)
-      : Math.floor(1000 + Math.random() * 9000);
-  const appointmentId = `apt-${Date.now()}-${randomDigits}`;
-  const bookingCode = `BO-${randomDigits}`;
-  const endTime = addMinutesToTime(input.startTime, authoritativeDuration);
-  const slotLockId = `${assignedBarber.id}__${input.date}__${input.startTime.replace(':', '-')}`;
-  const nowISO = new Date().toISOString();
-
-  const historyEntry = cleanHistoryEntry({
-    id: `hist-${Date.now()}`,
-    timestamp: nowISO,
-    actor: 'cliente',
-    action: 'Agendamento confirmado pelo aplicativo do cliente',
-    newStatus: 'Confirmado',
-  });
 
   const cleanEmail = sanitizeTextField(input.clientEmail, 120);
   const cleanNotes = sanitizeTextField(input.notes, 400);
+  const requestedStartMin = timeToMinutes(input.startTime);
 
-  const appointmentDocPayload: Record<string, unknown> = {
-    id: appointmentId,
-    bookingCode,
-    shopId: BARBERSHOP_INFO.id,
-    clientId: input.user.uid,
-    clientName: cleanName,
-    clientPhone: cleanPhone,
-    serviceId: localService.id,
-    serviceName: sanitizeTextField(authoritativeServiceName, 100),
-    serviceDurationMinutes: Math.round(authoritativeDuration),
-    priceCents: Math.round(authoritativePriceCents),
-    barberId: assignedBarber.id,
-    barberName: sanitizeTextField(assignedBarber.name, 80),
-    anyBarberRequested: input.barberId === 'any',
-    date: input.date,
-    startTime: input.startTime,
-    endTime,
-    slotLockId,
-    paymentMethod: safePaymentMethod,
-    status: 'Confirmado',
-    changeHistory: [historyEntry],
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
+  for (const candidateBarberId of candidateBarberIds) {
+    const assignedBarber = BARBERS.find((b) => b.id === candidateBarberId);
+    if (!assignedBarber) continue;
 
-  if (cleanEmail) {
-    appointmentDocPayload.clientEmail = cleanEmail;
-  }
-  if (cleanNotes) {
-    appointmentDocPayload.notes = cleanNotes;
-  }
-
-  const slotLockPayload = {
-    shopId: BARBERSHOP_INFO.id,
-    barberId: assignedBarber.id,
-    date: input.date,
-    startTime: input.startTime,
-    endTime,
-    appointmentId,
-    clientId: input.user.uid,
-    kind: 'booking',
-    createdAt: serverTimestamp(),
-  };
-
-  try {
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'appointments', appointmentId), appointmentDocPayload);
-    batch.set(doc(db, 'availabilitySlots', slotLockId), slotLockPayload);
-    await batch.commit();
-  } catch (error) {
-    const msg = error instanceof Error ? error.message.toLowerCase() : '';
-    if (msg.includes('already exists') || msg.includes('permission')) {
-      return {
-        ok: false,
-        status: 409,
-        error:
-          'Este horário acabou de ser reservado por outro cliente. Escolha outro horário livre.',
-      };
+    const slotLockId = `${assignedBarber.id}__${input.date}__${input.startTime.replace(':', '-')}`;
+    const candidateSlotIds = new Set<string>([slotLockId]);
+    for (const demoSlot of DEMONSTRATION_SLOTS) {
+      candidateSlotIds.add(
+        `${assignedBarber.id}__${input.date}__${demoSlot.replace(':', '-')}`
+      );
     }
-    handleFirestoreError(error, OperationType.WRITE, `appointments/${appointmentId}`);
+    for (const lock of busyLocks) {
+      if (lock.barberId === assignedBarber.id && lock.slotId) {
+        candidateSlotIds.add(lock.slotId);
+      }
+    }
+
+    const appointmentId = `apt-${Date.now()}-${generateCryptoHex(4)}`;
+    const bookingCode = generateRandomBookingCode();
+    const nowISO = new Date().toISOString();
+
+    const historyEntry = cleanHistoryEntry({
+      id: `hist-${Date.now()}-${generateCryptoHex(2)}`,
+      timestamp: nowISO,
+      actor: 'cliente',
+      action: 'Agendamento confirmado pelo aplicativo do cliente',
+      newStatus: 'Confirmado',
+    });
+
+    try {
+      const createdAppointment = await runTransaction(activeDb, async (tx) => {
+        const svcRef = doc(activeDb, 'services', input.serviceId);
+        const barberRef = doc(activeDb, 'barbers', assignedBarber.id);
+        const slotIdsArray = Array.from(candidateSlotIds);
+
+        const [svcSnap, barberSnap, ...slotSnaps] = await Promise.all([
+          tx.get(svcRef),
+          tx.get(barberRef),
+          ...slotIdsArray.map((id) => tx.get(doc(activeDb, 'availabilitySlots', id))),
+        ]);
+
+        if (!svcSnap.exists()) {
+          throw new Error('CATALOG_NOT_INITIALIZED');
+        }
+        const svcData = svcSnap.data();
+        if (svcData.active === false) {
+          throw new Error('SERVICE_INACTIVE');
+        }
+        const authoritativeServiceName =
+          sanitizeTextField(svcData.name, 100) || localService.name;
+        const rawPriceCents = Number(svcData.priceCents);
+        const rawDuration = Number(svcData.durationMinutes);
+        const authoritativePriceCents =
+          Number.isFinite(rawPriceCents) && rawPriceCents > 0
+            ? Math.round(rawPriceCents)
+            : localService.priceCents;
+        const authoritativeDuration =
+          Number.isFinite(rawDuration) && rawDuration > 0
+            ? Math.round(rawDuration)
+            : localService.durationMinutes;
+
+        let authoritativeBarberName = assignedBarber.name;
+        if (barberSnap.exists()) {
+          const barberData = barberSnap.data();
+          if (barberData.isAvailable === false) {
+            throw new Error('BARBER_UNAVAILABLE');
+          }
+          authoritativeBarberName =
+            sanitizeTextField(barberData.name, 80) || assignedBarber.name;
+        } else {
+          throw new Error('CATALOG_NOT_INITIALIZED');
+        }
+
+        const requestedEndMin = requestedStartMin + authoritativeDuration;
+        const endTime = addMinutesToTime(input.startTime, authoritativeDuration);
+
+        // Atomic overlap check across all slot locks for this barber on this date
+        for (const sSnap of slotSnaps) {
+          if (!sSnap.exists()) continue;
+          if (sSnap.id === slotLockId) {
+            throw new Error('SLOT_CONFLICT');
+          }
+          const sData = sSnap.data();
+          const sStartStr = String(sData.startTime ?? '');
+          const sEndStr = String(sData.endTime ?? '');
+          if (isValidTimeHHMM(sStartStr) && isValidTimeHHMM(sEndStr)) {
+            const sStart = timeToMinutes(sStartStr);
+            const sEnd = timeToMinutes(sEndStr);
+            if (
+              sStart < sEnd &&
+              intervalsOverlap(requestedStartMin, requestedEndMin, sStart, sEnd)
+            ) {
+              throw new Error('SLOT_CONFLICT');
+            }
+          }
+        }
+
+        const appointmentDocPayload: Record<string, unknown> = {
+          id: appointmentId,
+          bookingCode,
+          shopId: BARBERSHOP_INFO.id,
+          clientId: input.user.uid,
+          clientName: cleanName,
+          clientPhone: cleanPhone,
+          serviceId: localService.id,
+          serviceName: sanitizeTextField(authoritativeServiceName, 100),
+          serviceDurationMinutes: Math.round(authoritativeDuration),
+          priceCents: Math.round(authoritativePriceCents),
+          barberId: assignedBarber.id,
+          barberName: sanitizeTextField(authoritativeBarberName, 80),
+          anyBarberRequested: input.barberId === 'any',
+          date: input.date,
+          startTime: input.startTime,
+          endTime,
+          slotLockId,
+          paymentMethod: safePaymentMethod,
+          status: 'Confirmado',
+          changeHistory: [historyEntry],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+
+        if (cleanEmail) {
+          appointmentDocPayload.clientEmail = cleanEmail;
+        }
+        if (cleanNotes) {
+          appointmentDocPayload.notes = cleanNotes;
+        }
+
+        const slotLockPayload = {
+          shopId: BARBERSHOP_INFO.id,
+          barberId: assignedBarber.id,
+          date: input.date,
+          startTime: input.startTime,
+          endTime,
+          appointmentId,
+          clientId: input.user.uid,
+          kind: 'booking',
+          createdAt: serverTimestamp(),
+        };
+
+        tx.set(doc(activeDb, 'appointments', appointmentId), appointmentDocPayload);
+        tx.set(doc(activeDb, 'availabilitySlots', slotLockId), slotLockPayload);
+
+        return {
+          id: appointmentId,
+          bookingCode,
+          shopId: BARBERSHOP_INFO.id,
+          clientId: input.user.uid,
+          clientName: cleanName,
+          clientPhone: cleanPhone,
+          clientEmail: cleanEmail || undefined,
+          serviceId: localService.id,
+          serviceName: authoritativeServiceName,
+          serviceDurationMinutes: authoritativeDuration,
+          priceCents: authoritativePriceCents,
+          barberId: assignedBarber.id,
+          barberName: authoritativeBarberName,
+          anyBarberRequested: input.barberId === 'any',
+          date: input.date,
+          startTime: input.startTime,
+          endTime,
+          slotLockId,
+          notes: cleanNotes || undefined,
+          paymentMethod: safePaymentMethod,
+          status: 'Confirmado' as const,
+          changeHistory: [historyEntry],
+          createdAt: nowISO,
+          updatedAt: nowISO,
+        } satisfies Appointment;
+      });
+
+      invalidateDateBusyLocksCache(input.date);
+      return {ok: true, status: 201, appointment: createdAppointment};
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      const lower = msg.toLowerCase();
+
+      if (msg === 'CATALOG_NOT_INITIALIZED') {
+        return {
+          ok: false,
+          status: 400,
+          error:
+            'O catálogo oficial no banco ainda está sendo inicializado pelo administrador da barbearia.',
+        };
+      }
+      if (msg === 'SERVICE_INACTIVE') {
+        return {
+          ok: false,
+          status: 400,
+          error: 'Este serviço está temporariamente indisponível para agendamento.',
+        };
+      }
+      if (
+        msg === 'SLOT_CONFLICT' ||
+        msg === 'BARBER_UNAVAILABLE' ||
+        lower.includes('already exists') ||
+        lower.includes('aborted') ||
+        lower.includes('failed-precondition') ||
+        lower.includes('permission')
+      ) {
+        invalidateDateBusyLocksCache(input.date);
+        // Try next available barber when user selected 'any'
+        continue;
+      }
+
+      handleFirestoreError(error, OperationType.WRITE, `appointments/${appointmentId}`);
+    }
   }
 
-  const createdAppointment: Appointment = {
-    id: appointmentId,
-    bookingCode,
-    shopId: BARBERSHOP_INFO.id,
-    clientId: input.user.uid,
-    clientName: cleanName,
-    clientPhone: cleanPhone,
-    clientEmail: cleanEmail || undefined,
-    serviceId: localService.id,
-    serviceName: authoritativeServiceName,
-    serviceDurationMinutes: authoritativeDuration,
-    priceCents: authoritativePriceCents,
-    barberId: assignedBarber.id,
-    barberName: assignedBarber.name,
-    anyBarberRequested: input.barberId === 'any',
-    date: input.date,
-    startTime: input.startTime,
-    endTime,
-    slotLockId,
-    notes: cleanNotes || undefined,
-    paymentMethod: safePaymentMethod,
-    status: 'Confirmado',
-    changeHistory: [historyEntry],
-    createdAt: nowISO,
-    updatedAt: nowISO,
+  invalidateDateBusyLocksCache(input.date);
+  return {
+    ok: false,
+    status: 409,
+    error:
+      'Este horário acabou de ser reservado por outro cliente. Escolha outro horário livre.',
   };
-
-  return {ok: true, status: 201, appointment: createdAppointment};
 }
 
 export async function cancelFirestoreAppointment(params: {
@@ -733,54 +1018,91 @@ export async function cancelFirestoreAppointment(params: {
   if (!isFirebaseSyncEnabled || !db) {
     throw new Error(FIREBASE_SYNC_PAUSED_MESSAGE);
   }
+  const activeDb = db;
   const {uid, appointment, reason} = params;
   const nowISO = new Date().toISOString();
   const cleanReason = sanitizeTextField(reason, 300);
 
-  const nextHistory = [
-    ...appointment.changeHistory.map(cleanHistoryEntry),
-    cleanHistoryEntry({
-      id: `hist-${Date.now()}`,
-      timestamp: nowISO,
-      actor: 'cliente',
-      action: 'Cancelamento realizado pelo cliente',
-      previousStatus: appointment.status,
-      newStatus: 'Cancelado',
-      note: cleanReason || undefined,
-    }),
-  ].slice(-30);
-
-  const slotLockId =
-    appointment.slotLockId ||
-    `${appointment.barberId}__${appointment.date}__${appointment.startTime.replace(':', '-')}`;
-
-  const aptRef = doc(db, 'appointments', appointment.id);
-  const slotRef = doc(db, 'availabilitySlots', slotLockId);
+  const aptRef = doc(activeDb, 'appointments', appointment.id);
 
   try {
-    const batch = writeBatch(db);
-    batch.update(aptRef, {
-      status: 'Cancelado',
-      changeHistory: nextHistory,
-      updatedAt: serverTimestamp(),
+    const updated = await runTransaction(activeDb, async (tx) => {
+      const aptSnap = await tx.get(aptRef);
+      if (!aptSnap.exists()) {
+        throw new Error('NOT_FOUND');
+      }
+      const latest = aptSnap.data();
+      if (latest.clientId !== uid) {
+        throw new Error('FORBIDDEN_OWNER');
+      }
+      const latestStatus = String(latest.status ?? appointment.status) as AppointmentStatus;
+      if (latestStatus === 'Concluído' || latestStatus === 'Cancelado') {
+        throw new Error('ALREADY_FINALIZED');
+      }
+
+      const slotLockId =
+        (typeof latest.slotLockId === 'string' && latest.slotLockId) ||
+        appointment.slotLockId ||
+        `${appointment.barberId}__${appointment.date}__${appointment.startTime.replace(':', '-')}`;
+      const slotRef = doc(activeDb, 'availabilitySlots', slotLockId);
+      const slotSnap = await tx.get(slotRef);
+
+      const serverHistory = Array.isArray(latest.changeHistory)
+        ? (latest.changeHistory as AppointmentHistoryEntry[]).map(cleanHistoryEntry)
+        : appointment.changeHistory.map(cleanHistoryEntry);
+
+      const nextHistory = [
+        ...serverHistory.slice(-29),
+        cleanHistoryEntry({
+          id: `hist-${Date.now()}-${generateCryptoHex(2)}`,
+          timestamp: nowISO,
+          actor: 'cliente',
+          action: 'Cancelamento realizado pelo cliente',
+          previousStatus: latestStatus,
+          newStatus: 'Cancelado',
+          note: cleanReason || undefined,
+        }),
+      ];
+
+      tx.update(aptRef, {
+        status: 'Cancelado',
+        changeHistory: nextHistory,
+        updatedAt: serverTimestamp(),
+      });
+      if (slotSnap.exists()) {
+        tx.delete(slotRef);
+      }
+
+      return {
+        ...appointment,
+        clientId: uid,
+        status: 'Cancelado' as const,
+        changeHistory: nextHistory,
+        updatedAt: nowISO,
+      };
     });
-    batch.delete(slotRef);
-    await batch.commit();
+
+    invalidateDateBusyLocksCache(appointment.date);
+    return updated;
   } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg === 'NOT_FOUND') {
+      throw new Error('Agendamento não encontrado no servidor.');
+    }
+    if (msg === 'FORBIDDEN_OWNER') {
+      throw new Error('Você só pode cancelar os seus próprios agendamentos.');
+    }
+    if (msg === 'ALREADY_FINALIZED') {
+      throw new Error(
+        'Este agendamento já foi concluído ou cancelado pela barbearia.'
+      );
+    }
     handleFirestoreError(
       error,
       OperationType.UPDATE,
       `appointments/${appointment.id}`
     );
   }
-
-  return {
-    ...appointment,
-    clientId: uid,
-    status: 'Cancelado',
-    changeHistory: nextHistory,
-    updatedAt: nowISO,
-  };
 }
 
 export async function rescheduleFirestoreAppointment(params: {
@@ -792,8 +1114,9 @@ export async function rescheduleFirestoreAppointment(params: {
   if (!isFirebaseSyncEnabled || !db) {
     throw new Error(FIREBASE_SYNC_PAUSED_MESSAGE);
   }
+  const activeDb = db;
   const {appointment, preferredDate, preferredTime, reason} = params;
-  if (!isValidISODate(preferredDate) || !/^\d{2}:\d{2}$/.test(preferredTime)) {
+  if (!isValidISODate(preferredDate) || !isValidTimeHHMM(preferredTime)) {
     throw new Error('Data ou horário inválido para solicitação de reagendamento.');
   }
   const nowISO = new Date().toISOString();
@@ -803,6 +1126,7 @@ export async function rescheduleFirestoreAppointment(params: {
     dateISO: preferredDate,
     serviceId: appointment.serviceId,
     barberId: appointment.anyBarberRequested ? 'any' : appointment.barberId,
+    forceFresh: true,
   });
 
   if (!rescheduleAvailability.isShopOpen) {
@@ -830,44 +1154,70 @@ export async function rescheduleFirestoreAppointment(params: {
     rescheduleRequest.reason = cleanReason;
   }
 
-  const nextHistory = [
-    ...appointment.changeHistory.map(cleanHistoryEntry),
-    cleanHistoryEntry({
-      id: `hist-${Date.now()}`,
-      timestamp: nowISO,
-      actor: 'cliente',
-      action: `Solicitação de reagendamento para ${preferredDate} às ${preferredTime}`,
-      previousStatus: appointment.status,
-      newStatus: 'Reagendamento solicitado',
-      note: cleanReason || undefined,
-    }),
-  ].slice(-30);
-
+  const aptRef = doc(activeDb, 'appointments', appointment.id);
   try {
-    await updateDoc(doc(db, 'appointments', appointment.id), {
-      status: 'Reagendamento solicitado',
-      rescheduleRequest,
-      changeHistory: nextHistory,
-      updatedAt: serverTimestamp(),
+    return await runTransaction(activeDb, async (tx) => {
+      const aptSnap = await tx.get(aptRef);
+      if (!aptSnap.exists()) {
+        throw new Error('NOT_FOUND');
+      }
+      const latest = aptSnap.data();
+      const latestStatus = String(latest.status ?? appointment.status) as AppointmentStatus;
+      if (latestStatus === 'Concluído' || latestStatus === 'Cancelado') {
+        throw new Error('ALREADY_FINALIZED');
+      }
+
+      const serverHistory = Array.isArray(latest.changeHistory)
+        ? (latest.changeHistory as AppointmentHistoryEntry[]).map(cleanHistoryEntry)
+        : appointment.changeHistory.map(cleanHistoryEntry);
+
+      const nextHistory = [
+        ...serverHistory.slice(-29),
+        cleanHistoryEntry({
+          id: `hist-${Date.now()}-${generateCryptoHex(2)}`,
+          timestamp: nowISO,
+          actor: 'cliente',
+          action: `Solicitação de reagendamento para ${preferredDate} às ${preferredTime}`,
+          previousStatus: latestStatus,
+          newStatus: 'Reagendamento solicitado',
+          note: cleanReason || undefined,
+        }),
+      ];
+
+      tx.update(aptRef, {
+        status: 'Reagendamento solicitado',
+        rescheduleRequest,
+        changeHistory: nextHistory,
+        updatedAt: serverTimestamp(),
+      });
+
+      return {
+        ...appointment,
+        status: 'Reagendamento solicitado' as const,
+        rescheduleRequest: {
+          preferredDate,
+          preferredTime,
+          reason: cleanReason || undefined,
+          requestedAt: nowISO,
+        },
+        changeHistory: nextHistory,
+        updatedAt: nowISO,
+      };
     });
   } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg === 'NOT_FOUND') {
+      throw new Error('Agendamento não encontrado no servidor.');
+    }
+    if (msg === 'ALREADY_FINALIZED') {
+      throw new Error(
+        'Não é possível solicitar reagendamento porque este atendimento já foi concluído ou cancelado.'
+      );
+    }
     handleFirestoreError(
       error,
       OperationType.UPDATE,
       `appointments/${appointment.id}`
     );
   }
-
-  return {
-    ...appointment,
-    status: 'Reagendamento solicitado',
-    rescheduleRequest: {
-      preferredDate,
-      preferredTime,
-      reason: cleanReason || undefined,
-      requestedAt: nowISO,
-    },
-    changeHistory: nextHistory,
-    updatedAt: nowISO,
-  };
 }

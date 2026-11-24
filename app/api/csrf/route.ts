@@ -1,4 +1,5 @@
 import {NextRequest, NextResponse} from 'next/server';
+import {enforceRateLimit} from '@/lib/server/rate-limit';
 import {
   buildSecurityCookieOptions,
   createSignedCsrfToken,
@@ -12,6 +13,13 @@ import {
 } from '@/lib/utils/csrf-edge';
 
 export async function GET(req: NextRequest) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'csrf-get',
+    maxRequests: 240,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const secure = isHttpsRequest(req.headers, req.nextUrl.protocol);
 
   const existingSession = req.cookies.get(SESSION_COOKIE_NAME)?.value;

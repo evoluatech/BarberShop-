@@ -208,13 +208,15 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
       },
     });
 
-    testFirestoreConnection();
     const unsub = onAuthStateChanged(activeAuth, async (nextUser) => {
       if (nextUser?.uid !== syncedUidRef.current) {
         setFirestoreProfile(null);
         setCatalogSeeded(false);
       }
       setUser(nextUser);
+      if (nextUser) {
+        testFirestoreConnection();
+      }
       if (nextUser && nextUser.emailVerified) {
         await syncVerifiedUserState(nextUser);
       } else {

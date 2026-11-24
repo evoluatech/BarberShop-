@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -22,8 +23,86 @@ import {
 } from '@/lib/utils/formatters';
 
 const STORE_FILE = path.join('/tmp', 'black-orange-appointments-v1.json');
+const MAX_STORED_APPOINTMENTS = 2500;
+
+const SAO_PAULO_NOW_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+const BOOKING_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 let memoryFallbackStore: Appointment[] | null = null;
+let byIdIndex = new Map<string, Appointment>();
+let activeByDateIndex = new Map<string, Appointment[]>();
+let pendingPersistPromise: Promise<void> = Promise.resolve();
+let persistQueued = false;
+
+function isBlockingStatus(status: AppointmentStatus): boolean {
+  return status !== 'Cancelado';
+}
+
+function rebuildIndexes(appointments: Appointment[]): void {
+  const nextById = new Map<string, Appointment>();
+  const nextActiveByDate = new Map<string, Appointment[]>();
+
+  for (const apt of appointments) {
+    nextById.set(apt.id, apt);
+    if (isBlockingStatus(apt.status)) {
+      const bucket = nextActiveByDate.get(apt.date);
+      if (bucket) {
+        bucket.push(apt);
+      } else {
+        nextActiveByDate.set(apt.date, [apt]);
+      }
+    }
+  }
+
+  byIdIndex = nextById;
+  activeByDateIndex = nextActiveByDate;
+}
+
+function pruneOversizedAppointments(appointments: Appointment[]): Appointment[] {
+  if (appointments.length <= MAX_STORED_APPOINTMENTS) {
+    return appointments;
+  }
+  const active: Appointment[] = [];
+  const archived: Appointment[] = [];
+  for (const apt of appointments) {
+    if (apt.status === 'Concluído' || apt.status === 'Cancelado') {
+      archived.push(apt);
+    } else {
+      active.push(apt);
+    }
+  }
+  const keepArchivedCount = Math.max(0, MAX_STORED_APPOINTMENTS - active.length);
+  return [...active, ...archived.slice(0, keepArchivedCount)];
+}
+
+function scheduleAsyncDiskPersist(): void {
+  if (persistQueued) return;
+  persistQueued = true;
+
+  pendingPersistPromise = pendingPersistPromise
+    .then(async () => {
+      persistQueued = false;
+      const snapshot = memoryFallbackStore;
+      if (!snapshot) return;
+      const tmpFile = `${STORE_FILE}.${process.pid}.tmp`;
+      const serialized = JSON.stringify(snapshot);
+      await fs.promises.writeFile(tmpFile, serialized, 'utf-8');
+      await fs.promises.rename(tmpFile, STORE_FILE);
+    })
+    .catch(() => {
+      persistQueued = false;
+      // In-memory store remains authoritative if /tmp is read-only
+    });
+}
 
 function readStore(): Appointment[] {
   if (memoryFallbackStore) {
@@ -34,11 +113,14 @@ function readStore(): Appointment[] {
       const raw = fs.readFileSync(STORE_FILE, 'utf-8');
       const parsed = JSON.parse(raw) as Appointment[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const normalized = parsed.map((apt) => ({
-          ...apt,
-          paymentMethod: apt.paymentMethod ?? 'pix',
-        }));
+        const normalized = pruneOversizedAppointments(
+          parsed.map((apt) => ({
+            ...apt,
+            paymentMethod: apt.paymentMethod ?? 'pix',
+          }))
+        );
         memoryFallbackStore = normalized;
+        rebuildIndexes(normalized);
         return normalized;
       }
     }
@@ -46,17 +128,32 @@ function readStore(): Appointment[] {
     // Fallback to initial seed
   }
   const initial = createInitialSeedAppointments();
-  writeStore(initial);
+  memoryFallbackStore = initial;
+  rebuildIndexes(initial);
+  scheduleAsyncDiskPersist();
   return initial;
 }
 
 function writeStore(appointments: Appointment[]): void {
-  memoryFallbackStore = appointments;
-  try {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(appointments, null, 2), 'utf-8');
-  } catch {
-    // In-memory store remains active if /tmp is read-only
+  const bounded = pruneOversizedAppointments(appointments);
+  memoryFallbackStore = bounded;
+  rebuildIndexes(bounded);
+  scheduleAsyncDiskPersist();
+}
+
+function generateUniqueBookingCode(existingCodes: Set<string>): string {
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const bytes = crypto.randomBytes(6);
+    let suffix = '';
+    for (let i = 0; i < 6; i++) {
+      suffix += BOOKING_CODE_ALPHABET[bytes[i] % BOOKING_CODE_ALPHABET.length];
+    }
+    const candidate = `BO-${suffix}`;
+    if (!existingCodes.has(candidate)) {
+      return candidate;
+    }
   }
+  return `BO-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 }
 
 export function listAllAppointments(clientId?: string): Appointment[] {
@@ -68,7 +165,8 @@ export function listAllAppointments(clientId?: string): Appointment[] {
 }
 
 export function getAppointmentById(id: string): Appointment | undefined {
-  return readStore().find((a) => a.id === id);
+  readStore();
+  return byIdIndex.get(id);
 }
 
 function intervalsOverlap(
@@ -78,10 +176,6 @@ function intervalsOverlap(
   endB: number
 ): boolean {
   return startA < endB && endA > startB;
-}
-
-function isBlockingStatus(status: AppointmentStatus): boolean {
-  return status !== 'Cancelado';
 }
 
 export function computeAvailability(params: {
@@ -146,24 +240,30 @@ export function computeAvailability(params: {
     };
   }
 
-  const allAppointmentsOnDate = readStore().filter(
-    (apt) => apt.date === params.date && isBlockingStatus(apt.status)
-  );
+  readStore();
+  const allAppointmentsOnDate = activeByDateIndex.get(params.date) ?? [];
 
-  const now = new Date();
-  const spParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
+  const spParts = SAO_PAULO_NOW_FORMATTER.formatToParts(new Date());
   const partMap = Object.fromEntries(spParts.map((p) => [p.type, p.value]));
   const todayISO = `${partMap.year}-${partMap.month}-${partMap.day}`;
   const currentMinutesNow =
     Number(partMap.hour === '24' ? '0' : partMap.hour) * 60 + Number(partMap.minute);
+
+  const bookingsByBarber = new Map<string, {start: number; end: number}[]>();
+  for (const apt of allAppointmentsOnDate) {
+    if (!isValidTimeHHMM(apt.startTime) || !isValidTimeHHMM(apt.endTime)) {
+      continue;
+    }
+    const start = timeToMinutes(apt.startTime);
+    const end = timeToMinutes(apt.endTime);
+    if (start >= end) continue;
+    const list = bookingsByBarber.get(apt.barberId);
+    if (list) {
+      list.push({start, end});
+    } else {
+      bookingsByBarber.set(apt.barberId, [{start, end}]);
+    }
+  }
 
   const slots: TimeSlotAvailability[] = [];
 
@@ -189,17 +289,10 @@ export function computeAvailability(params: {
 
     const freeBarberIds: string[] = [];
     for (const barber of eligibleBarbers) {
-      const barberBookings = allAppointmentsOnDate.filter(
-        (b) => b.barberId === barber.id
-      );
-      const hasConflict = barberBookings.some((b) => {
-        if (!isValidTimeHHMM(b.startTime) || !isValidTimeHHMM(b.endTime)) {
-          return false;
-        }
-        const bStart = timeToMinutes(b.startTime);
-        const bEnd = timeToMinutes(b.endTime);
-        return bStart < bEnd && intervalsOverlap(slotStart, slotEnd, bStart, bEnd);
-      });
+      const barberBookings = bookingsByBarber.get(barber.id);
+      const hasConflict = barberBookings
+        ? barberBookings.some((b) => intervalsOverlap(slotStart, slotEnd, b.start, b.end))
+        : false;
       if (!hasConflict) {
         freeBarberIds.push(barber.id);
       }
@@ -274,18 +367,11 @@ export function createAppointment(input: {
   const all = readStore();
   const existingCodes = new Set(all.map((a) => a.bookingCode));
   const nowISO = new Date().toISOString();
-  let randomDigits = Math.floor(1000 + Math.random() * 9000);
-  let bookingCode = `BO-${randomDigits}`;
-  for (let attempt = 0; attempt < 100 && existingCodes.has(bookingCode); attempt++) {
-    randomDigits = Math.floor(1000 + Math.random() * 9000);
-    bookingCode = `BO-${randomDigits}`;
-  }
-  if (existingCodes.has(bookingCode)) {
-    bookingCode = `BO-${Date.now().toString().slice(-6)}`;
-  }
+  const bookingCode = generateUniqueBookingCode(existingCodes);
+  const randomSuffix = crypto.randomBytes(4).toString('hex');
   const slotLockId = `${assignedBarber.id}__${input.date}__${input.startTime.replace(':', '-')}`;
   const newAppointment: Appointment = {
-    id: `apt-${Date.now()}-${randomDigits}`,
+    id: `apt-${Date.now()}-${randomSuffix}`,
     bookingCode,
     shopId: BARBERSHOP_INFO.id,
     clientId: input.clientId || 'client-demo',
@@ -308,7 +394,7 @@ export function createAppointment(input: {
     status: 'Confirmado',
     changeHistory: [
       {
-        id: `hist-${Date.now()}`,
+        id: `hist-${Date.now()}-${randomSuffix}`,
         timestamp: nowISO,
         actor: 'cliente',
         action: 'Agendamento confirmado pelo aplicativo do cliente',
@@ -345,6 +431,7 @@ export function updateAppointmentStatus(params: {
   }
 
   const nowISO = new Date().toISOString();
+  const histSuffix = crypto.randomBytes(3).toString('hex');
   let updated: Appointment;
 
   if (params.action === 'cancel') {
@@ -356,7 +443,7 @@ export function updateAppointmentStatus(params: {
       changeHistory: [
         ...current.changeHistory,
         {
-          id: `hist-${Date.now()}`,
+          id: `hist-${Date.now()}-${histSuffix}`,
           timestamp: nowISO,
           actor: 'cliente',
           action: 'Cancelamento realizado pelo cliente',
@@ -415,7 +502,7 @@ export function updateAppointmentStatus(params: {
       changeHistory: [
         ...current.changeHistory,
         {
-          id: `hist-${Date.now()}`,
+          id: `hist-${Date.now()}-${histSuffix}`,
           timestamp: nowISO,
           actor: 'cliente',
           action: `Solicitação de reagendamento para ${params.preferredDate} às ${params.preferredTime}`,

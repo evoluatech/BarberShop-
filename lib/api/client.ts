@@ -156,13 +156,19 @@ async function fetchJsonWithTimeout<T>(
 ): Promise<{ok: boolean; status: number; data: T}> {
   const method = (options.method || 'GET').toUpperCase();
   const isMutating = MUTATING_METHODS.has(method);
+  const needsAuthHeaders =
+    isMutating ||
+    url.startsWith('/api/appointments') ||
+    url.startsWith('/api/auth');
   const csrfToken = isMutating
     ? await resolveCsrfToken(retriedAuth && !cachedCsrfToken)
     : null;
-  const [idToken, expectedUid] = await Promise.all([
-    apiAuthProvider.getIdToken().catch(() => null),
-    Promise.resolve(apiAuthProvider.getExpectedUid()),
-  ]);
+  const [idToken, expectedUid] = needsAuthHeaders
+    ? await Promise.all([
+        apiAuthProvider.getIdToken().catch(() => null),
+        Promise.resolve(apiAuthProvider.getExpectedUid()),
+      ])
+    : [null, null];
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -221,6 +227,28 @@ export async function fetchClientAppointments(
   return sanitizeAppointmentsList(data.appointments);
 }
 
+const availabilityClientCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: {
+      isShopOpen: boolean;
+      closedReason?: string;
+      openingHoursLabel: string;
+      slots: TimeSlotAvailability[];
+    };
+  }
+>();
+const inFlightAvailabilityRequests = new Map<
+  string,
+  Promise<{
+    isShopOpen: boolean;
+    closedReason?: string;
+    openingHoursLabel: string;
+    slots: TimeSlotAvailability[];
+  }>
+>();
+
 export async function fetchAvailabilitySlots(params: {
   dateISO: string;
   serviceId: string;
@@ -231,30 +259,54 @@ export async function fetchAvailabilitySlots(params: {
   openingHoursLabel: string;
   slots: TimeSlotAvailability[];
 }> {
-  const {ok, data} = await fetchJsonWithTimeout<{
-    isShopOpen?: boolean;
-    closedReason?: string;
-    openingHoursLabel?: string;
-    slots?: TimeSlotAvailability[];
-    error?: string;
-  }>(
-    `/api/availability?date=${encodeURIComponent(
-      params.dateISO
-    )}&serviceId=${encodeURIComponent(
-      params.serviceId
-    )}&barberId=${encodeURIComponent(params.barberId)}`
-  );
-
-  if (!ok) {
-    throw new Error(data.error || 'Não foi possível consultar os horários no momento.');
+  const cacheKey = `${params.dateISO}:${params.serviceId}:${params.barberId}`;
+  const now = Date.now();
+  const cached = availabilityClientCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
   }
 
-  return {
-    isShopOpen: Boolean(data.isShopOpen),
-    closedReason: data.closedReason,
-    openingHoursLabel: data.openingHoursLabel || '',
-    slots: Array.isArray(data.slots) ? data.slots : [],
-  };
+  const existingFlight = inFlightAvailabilityRequests.get(cacheKey);
+  if (existingFlight) {
+    return existingFlight;
+  }
+
+  const reqPromise = (async () => {
+    const {ok, data} = await fetchJsonWithTimeout<{
+      isShopOpen?: boolean;
+      closedReason?: string;
+      openingHoursLabel?: string;
+      slots?: TimeSlotAvailability[];
+      error?: string;
+    }>(
+      `/api/availability?date=${encodeURIComponent(
+        params.dateISO
+      )}&serviceId=${encodeURIComponent(
+        params.serviceId
+      )}&barberId=${encodeURIComponent(params.barberId)}`
+    );
+
+    if (!ok) {
+      throw new Error(data.error || 'Não foi possível consultar os horários no momento.');
+    }
+
+    const result = {
+      isShopOpen: Boolean(data.isShopOpen),
+      closedReason: data.closedReason,
+      openingHoursLabel: data.openingHoursLabel || '',
+      slots: Array.isArray(data.slots) ? data.slots : [],
+    };
+    availabilityClientCache.set(cacheKey, {
+      expiresAt: Date.now() + 4000,
+      value: result,
+    });
+    return result;
+  })().finally(() => {
+    inFlightAvailabilityRequests.delete(cacheKey);
+  });
+
+  inFlightAvailabilityRequests.set(cacheKey, reqPromise);
+  return reqPromise;
 }
 
 export async function createClientAppointment(payload: {

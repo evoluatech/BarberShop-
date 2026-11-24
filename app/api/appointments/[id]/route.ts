@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 import {resolveAuthenticatedClient} from '@/lib/server/firebase-auth';
+import {enforceRateLimit} from '@/lib/server/rate-limit';
 import {
   getAppointmentById,
   updateAppointmentStatus,
@@ -8,6 +9,13 @@ import {isValidISODate} from '@/lib/utils/formatters';
 import {isSafeEntityId, sanitizeTextField} from '@/lib/utils/security';
 
 export async function GET(req: NextRequest, context: {params: Promise<{id: string}>}) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'appointment-detail-read',
+    maxRequests: 180,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   const auth = await resolveAuthenticatedClient(req);
   if (!auth.ok) {
     return NextResponse.json(
@@ -55,6 +63,13 @@ export async function PATCH(
   req: NextRequest,
   context: {params: Promise<{id: string}>}
 ) {
+  const limited = enforceRateLimit(req, {
+    bucket: 'appointment-detail-write',
+    maxRequests: 120,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
   try {
     const auth = await resolveAuthenticatedClient(req);
     if (!auth.ok) {
