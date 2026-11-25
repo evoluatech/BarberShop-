@@ -28,6 +28,7 @@ import {
   Appointment,
   AppointmentHistoryEntry,
   AppointmentStatus,
+  Barber,
   ClientProfile,
   PaymentMethod,
   TimeSlotAvailability,
@@ -69,8 +70,15 @@ export interface BusySlotLock {
 }
 
 const BUSY_LOCKS_CACHE_TTL_MS = 5_000;
+const BARBERS_CACHE_TTL_MS = 5 * 60_000;
+const PROFILE_SESSION_CACHE_TTL_MS = 2 * 60_000;
+const CATALOG_SEED_SESSION_TTL_MS = 12 * 60 * 60_000;
+
 const busyLocksCache = new Map<string, {locks: BusySlotLock[]; expiresAt: number}>();
 const inFlightBusyLocks = new Map<string, Promise<BusySlotLock[]>>();
+
+let cachedBarbersDir: {barbers: Barber[]; expiresAt: number} | null = null;
+let inFlightBarbersDir: Promise<Barber[]> | null = null;
 
 export function invalidateDateBusyLocksCache(dateISO?: string): void {
   if (dateISO) {
@@ -78,6 +86,64 @@ export function invalidateDateBusyLocksCache(dateISO?: string): void {
     return;
   }
   busyLocksCache.clear();
+}
+
+export async function loadFirestoreBarbersWithFallback(): Promise<Barber[]> {
+  if (!isFirebaseSyncEnabled || !db) {
+    return BARBERS;
+  }
+  const now = Date.now();
+  if (cachedBarbersDir && cachedBarbersDir.expiresAt > now) {
+    return cachedBarbersDir.barbers;
+  }
+  if (inFlightBarbersDir) {
+    return inFlightBarbersDir;
+  }
+
+  const activeDb = db;
+  inFlightBarbersDir = (async () => {
+    try {
+      const snap = await getDocs(query(collection(activeDb, 'barbers'), limit(20)));
+      if (snap.empty) {
+        cachedBarbersDir = {barbers: BARBERS, expiresAt: Date.now() + BARBERS_CACHE_TTL_MS};
+        return BARBERS;
+      }
+
+      const byId = new Map<string, Record<string, unknown>>();
+      for (const d of snap.docs) {
+        byId.set(d.id, d.data());
+      }
+
+      const merged = BARBERS.map((base) => {
+        const remote = byId.get(base.id);
+        if (!remote) return base;
+        return {
+          ...base,
+          name: typeof remote.name === 'string' && remote.name ? remote.name : base.name,
+          role: typeof remote.role === 'string' && remote.role ? remote.role : base.role,
+          isAvailable:
+            typeof remote.isAvailable === 'boolean'
+              ? remote.isAvailable
+              : base.isAvailable,
+          workingDays: Array.isArray(remote.workingDays)
+            ? (remote.workingDays as number[])
+            : base.workingDays,
+          serviceIds: Array.isArray(remote.serviceIds)
+            ? (remote.serviceIds as string[])
+            : base.serviceIds,
+        };
+      });
+
+      cachedBarbersDir = {barbers: merged, expiresAt: Date.now() + BARBERS_CACHE_TTL_MS};
+      return merged;
+    } catch {
+      return BARBERS;
+    } finally {
+      inFlightBarbersDir = null;
+    }
+  })();
+
+  return inFlightBarbersDir;
 }
 
 function assertSafeId(value: string, fallback: string): string {
@@ -174,6 +240,19 @@ export async function ensureAdminAndCatalogSeeded(user: User): Promise<void> {
     return;
   }
 
+  const seedSessionKey = `bs_catalog_seeded_v1_${user.uid}`;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.sessionStorage.getItem(seedSessionKey);
+      const ts = raw ? Number(raw) : 0;
+      if (Number.isFinite(ts) && ts > 0 && Date.now() - ts < CATALOG_SEED_SESSION_TTL_MS) {
+        return;
+      }
+    } catch {
+      // Ignore storage failures
+    }
+  }
+
   // Ensure admin marker doc exists
   const adminRef = doc(db, 'admins', user.uid);
   try {
@@ -201,6 +280,13 @@ export async function ensureAdminAndCatalogSeeded(user: User): Promise<void> {
       existingServicesSnap.size >= SERVICES.length &&
       existingBarbersSnap.size >= BARBERS.length
     ) {
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(seedSessionKey, String(Date.now()));
+        } catch {
+          // Ignore storage failures
+        }
+      }
       return;
     }
 
@@ -246,6 +332,13 @@ export async function ensureAdminAndCatalogSeeded(user: User): Promise<void> {
     }
 
     await batch.commit();
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.setItem(seedSessionKey, String(Date.now()));
+      } catch {
+        // Ignore storage failures
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'services');
   }
@@ -258,6 +351,27 @@ export async function syncUserProfileWithFirestore(
   if (!isFirebaseSyncEnabled || !db) {
     throw new Error(FIREBASE_SYNC_PAUSED_MESSAGE);
   }
+
+  const profileSessionKey = `bs_profile_sync_v1_${user.uid}`;
+  if (!overrides && typeof window !== 'undefined') {
+    try {
+      const raw = window.sessionStorage.getItem(profileSessionKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as {expiresAt?: number; profile?: ClientProfile};
+        if (
+          parsed.profile &&
+          parsed.profile.id === user.uid &&
+          typeof parsed.expiresAt === 'number' &&
+          parsed.expiresAt > Date.now()
+        ) {
+          return parsed.profile;
+        }
+      }
+    } catch {
+      // Ignore storage failures
+    }
+  }
+
   const userPath = `users/${user.uid}`;
   const userRef = doc(db, 'users', user.uid);
 
@@ -363,6 +477,20 @@ export async function syncUserProfileWithFirestore(
     }
   }
 
+  if (typeof window !== 'undefined') {
+    try {
+      window.sessionStorage.setItem(
+        profileSessionKey,
+        JSON.stringify({
+          expiresAt: Date.now() + PROFILE_SESSION_CACHE_TTL_MS,
+          profile: nextProfile,
+        })
+      );
+    } catch {
+      // Ignore storage failures
+    }
+  }
+
   return nextProfile;
 }
 
@@ -374,46 +502,54 @@ export function subscribeClientAppointments(
   if (!isFirebaseSyncEnabled || !db) {
     return () => {};
   }
-  const q = query(
-    collection(db, 'appointments'),
+  const activeDb = db;
+  let unsubscribed = false;
+  let activeUnsub: () => void = () => {};
+
+  const mapSnapshot = (snapshot: {
+    docs: {id: string; data: () => Record<string, unknown>}[];
+  }): Appointment[] =>
+    snapshot.docs.map((docSnap) => {
+      const d = docSnap.data();
+      return {
+        id: docSnap.id,
+        bookingCode: String(d.bookingCode ?? ''),
+        shopId: String(d.shopId ?? BARBERSHOP_INFO.id),
+        clientId: String(d.clientId ?? uid),
+        clientName: String(d.clientName ?? ''),
+        clientPhone: String(d.clientPhone ?? ''),
+        clientEmail: typeof d.clientEmail === 'string' ? d.clientEmail : undefined,
+        serviceId: String(d.serviceId ?? ''),
+        serviceName: String(d.serviceName ?? ''),
+        serviceDurationMinutes: Number(d.serviceDurationMinutes ?? 45),
+        priceCents: Number(d.priceCents ?? 0),
+        barberId: String(d.barberId ?? ''),
+        barberName: String(d.barberName ?? ''),
+        anyBarberRequested: Boolean(d.anyBarberRequested),
+        date: String(d.date ?? ''),
+        startTime: String(d.startTime ?? ''),
+        endTime: String(d.endTime ?? ''),
+        slotLockId: typeof d.slotLockId === 'string' ? d.slotLockId : undefined,
+        notes: typeof d.notes === 'string' ? d.notes : undefined,
+        paymentMethod: (d.paymentMethod as PaymentMethod) ?? 'pix',
+        status: d.status,
+        rescheduleRequest: d.rescheduleRequest,
+        changeHistory: Array.isArray(d.changeHistory) ? d.changeHistory : [],
+        createdAt: timestampToISO(d.createdAt),
+        updatedAt: timestampToISO(d.updatedAt),
+      } as Appointment;
+    });
+
+  const appointmentsQuery = query(
+    collection(activeDb, 'appointments'),
     where('clientId', '==', uid),
-    limit(50)
+    limit(100)
   );
 
-  return onSnapshot(
-    q,
+  activeUnsub = onSnapshot(
+    appointmentsQuery,
     (snapshot) => {
-      const items: Appointment[] = snapshot.docs.map((docSnap) => {
-        const d = docSnap.data();
-        return {
-          id: docSnap.id,
-          bookingCode: String(d.bookingCode ?? ''),
-          shopId: String(d.shopId ?? BARBERSHOP_INFO.id),
-          clientId: String(d.clientId ?? uid),
-          clientName: String(d.clientName ?? ''),
-          clientPhone: String(d.clientPhone ?? ''),
-          clientEmail: typeof d.clientEmail === 'string' ? d.clientEmail : undefined,
-          serviceId: String(d.serviceId ?? ''),
-          serviceName: String(d.serviceName ?? ''),
-          serviceDurationMinutes: Number(d.serviceDurationMinutes ?? 45),
-          priceCents: Number(d.priceCents ?? 0),
-          barberId: String(d.barberId ?? ''),
-          barberName: String(d.barberName ?? ''),
-          anyBarberRequested: Boolean(d.anyBarberRequested),
-          date: String(d.date ?? ''),
-          startTime: String(d.startTime ?? ''),
-          endTime: String(d.endTime ?? ''),
-          slotLockId: typeof d.slotLockId === 'string' ? d.slotLockId : undefined,
-          notes: typeof d.notes === 'string' ? d.notes : undefined,
-          paymentMethod: (d.paymentMethod as PaymentMethod) ?? 'pix',
-          status: d.status,
-          rescheduleRequest: d.rescheduleRequest,
-          changeHistory: Array.isArray(d.changeHistory) ? d.changeHistory : [],
-          createdAt: timestampToISO(d.createdAt),
-          updatedAt: timestampToISO(d.updatedAt),
-        } as Appointment;
-      });
-      onData(items);
+      if (!unsubscribed) onData(mapSnapshot(snapshot));
     },
     (error) => {
       try {
@@ -423,6 +559,11 @@ export function subscribeClientAppointments(
       }
     }
   );
+
+  return () => {
+    unsubscribed = true;
+    activeUnsub();
+  };
 }
 
 function intervalsOverlap(
@@ -439,6 +580,7 @@ export function computeAvailabilityFromBusyLocks(params: {
   serviceId: string;
   barberId: string;
   busyLocks: BusySlotLock[];
+  barbers?: Barber[];
 }): {
   isShopOpen: boolean;
   closedReason?: string;
@@ -477,8 +619,9 @@ export function computeAvailabilityFromBusyLocks(params: {
 
   const openMinutes = timeToMinutes(hoursConfig.openTime);
   const closeMinutes = timeToMinutes(hoursConfig.closeTime);
+  const activeBarbers = params.barbers && params.barbers.length > 0 ? params.barbers : BARBERS;
 
-  const eligibleBarbers = BARBERS.filter((barber) => {
+  const eligibleBarbers = activeBarbers.filter((barber) => {
     const doesService = barber.serviceIds.includes(service.id);
     const worksThisDay = barber.workingDays.includes(dayOfWeek);
     const matchesSelection =
@@ -680,12 +823,16 @@ export async function fetchFirestoreAvailabilitySlots(params: {
       slots: [],
     };
   }
-  const busyLocks = await loadDateBusyLocks(params.dateISO, Boolean(params.forceFresh));
+  const [busyLocks, activeBarbers] = await Promise.all([
+    loadDateBusyLocks(params.dateISO, Boolean(params.forceFresh)),
+    loadFirestoreBarbersWithFallback(),
+  ]);
   return computeAvailabilityFromBusyLocks({
     dateISO: params.dateISO,
     serviceId: params.serviceId,
     barberId: params.barberId,
     busyLocks,
+    barbers: activeBarbers,
   });
 }
 
@@ -750,12 +897,16 @@ export async function createFirestoreAppointment(input: {
   }
 
   // Always force a fresh availability read before running the atomic transaction
-  const busyLocks = await loadDateBusyLocks(input.date, true);
+  const [busyLocks, activeBarbers] = await Promise.all([
+    loadDateBusyLocks(input.date, true),
+    loadFirestoreBarbersWithFallback(),
+  ]);
   const availability = computeAvailabilityFromBusyLocks({
     dateISO: input.date,
     serviceId: input.serviceId,
     barberId: input.barberId,
     busyLocks,
+    barbers: activeBarbers,
   });
 
   if (!availability.isShopOpen) {
@@ -790,20 +941,32 @@ export async function createFirestoreAppointment(input: {
   const cleanEmail = sanitizeTextField(input.clientEmail, 120);
   const cleanNotes = sanitizeTextField(input.notes, 400);
   const requestedStartMin = timeToMinutes(input.startTime);
+  const requestedEndWindowMin = requestedStartMin + localService.durationMinutes;
 
   for (const candidateBarberId of candidateBarberIds) {
-    const assignedBarber = BARBERS.find((b) => b.id === candidateBarberId);
+    const assignedBarber = activeBarbers.find((b) => b.id === candidateBarberId);
     if (!assignedBarber) continue;
 
+    // Narrow transaction slot reads to overlapping time windows (~4-6 docs instead of all 14)
     const slotLockId = `${assignedBarber.id}__${input.date}__${input.startTime.replace(':', '-')}`;
     const candidateSlotIds = new Set<string>([slotLockId]);
     for (const demoSlot of DEMONSTRATION_SLOTS) {
-      candidateSlotIds.add(
-        `${assignedBarber.id}__${input.date}__${demoSlot.replace(':', '-')}`
-      );
+      const slotStartMin = timeToMinutes(demoSlot);
+      if (slotStartMin >= requestedStartMin - 180 && slotStartMin < requestedEndWindowMin) {
+        candidateSlotIds.add(
+          `${assignedBarber.id}__${input.date}__${demoSlot.replace(':', '-')}`
+        );
+      }
     }
     for (const lock of busyLocks) {
-      if (lock.barberId === assignedBarber.id && lock.slotId) {
+      if (lock.barberId !== assignedBarber.id || !lock.slotId) continue;
+      if (!isValidTimeHHMM(lock.startTime) || !isValidTimeHHMM(lock.endTime)) {
+        candidateSlotIds.add(lock.slotId);
+        continue;
+      }
+      const lockStartMin = timeToMinutes(lock.startTime);
+      const lockEndMin = timeToMinutes(lock.endTime);
+      if (intervalsOverlap(requestedStartMin, requestedEndWindowMin, lockStartMin, lockEndMin)) {
         candidateSlotIds.add(lock.slotId);
       }
     }

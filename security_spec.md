@@ -8,7 +8,9 @@
 5. **Atomic Double-Booking Lock**: Every client booking in `/appointments/{appointmentId}` MUST atomically create its matching lock in `/availabilitySlots/{slotLockId}` in the same write batch (`existsAfter` / `getAfter`).
 6. **PII Isolation & Query Enforcement**: Clients can ONLY `get` or `list` `/appointments` where `resource.data.clientId == request.auth.uid`, and can NEVER read other users' `/users/{otherId}` documents. Availability lookups query `/availabilitySlots`, which stores ZERO PII (no names, phones, emails, or notes).
 7. **Terminal State Locking**: Once an appointment reaches `Concluído` or `Cancelado`, clients cannot modify it further; only verified barbers/admins (`isBarber()`) have controlled management overrides.
-8. **Shadow Field Prevention**: Every `create` validates exact `keys().hasAll(...)` and `keys().hasOnly(...)`; every `update` validates `affectedKeys().hasOnly(...)` inside named action branches + full `isValidEntity()` re-validation.
+8. **Shadow Field Prevention**: Every `create` validates exact `keys().hasAll(...)` and `keys().hasOnly(...)`; every `update` validates `affectedKeys().hasOnly(...)` inside named action branches + full `isValidEntity()` re-validation, including first and last elements of `changeHistory`.
+9. **Bounded List Queries**: Every `allow list` rule strictly enforces `request.query.limit != null && request.query.limit <= MAX` (`50` for catalog/roles, `100` for appointments/users, `200` for date-scoped availability locks) to block unbounded collection scans.
+10. **Active Catalog Enforcement**: Appointment creation verifies `services/{serviceId}.data.active == true` and `barbers/{barberId}.data.isAvailable == true` in `firestore.rules`.
 
 ## 2. The "Dirty Dozen" Attack Payloads (All MUST Return `PERMISSION_DENIED`)
 1. **Unauthenticated Appointment Read**: Anonymous user calls `getDocs(collection(db, 'appointments'))` -> Denied.

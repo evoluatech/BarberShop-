@@ -135,61 +135,44 @@ export async function resolveAuthenticatedClient(
   const expectedUidHeader = req.headers.get(CLIENT_UID_HEADER_NAME)?.trim();
   const bearerToken = extractBearerToken(req);
 
-  if (bearerToken) {
-    const bearerAuth = await verifyFirebaseBearerToken(bearerToken);
-    if (!bearerAuth.ok) {
-      return bearerAuth;
-    }
-
-    if (
-      sessionClaims?.authState === 'authenticated' &&
-      sessionClaims.uid &&
-      sessionClaims.uid !== bearerAuth.uid
-    ) {
-      return {
-        ok: false,
-        status: 409,
-        code: 'USER_SESSION_CONFLICT',
-        error:
-          'Conflito entre contas: a sessão do navegador pertence a outro usuário. Sincronize seu login.',
-      };
-    }
-
-    if (expectedUidHeader && expectedUidHeader !== bearerAuth.uid) {
-      return {
-        ok: false,
-        status: 409,
-        code: 'USER_SESSION_CONFLICT',
-        error:
-          'Conflito de usuário na requisição: identificador divergente do usuário autenticado.',
-      };
-    }
-
-    return bearerAuth;
-  }
-
-  if (sessionClaims?.authState === 'authenticated' && sessionClaims.uid) {
-    if (expectedUidHeader && expectedUidHeader !== sessionClaims.uid) {
-      return {
-        ok: false,
-        status: 409,
-        code: 'USER_SESSION_CONFLICT',
-        error:
-          'Conflito entre sessões de usuário no navegador. Recarregue para sincronizar.',
-      };
-    }
-
+  if (!bearerToken) {
     return {
-      ok: true,
-      uid: sessionClaims.uid,
-      authSource: 'signed_session',
+      ok: false,
+      status: 401,
+      code: 'AUTH_TOKEN_MISSING',
+      error:
+        'Autenticação necessária. Entre com sua conta Google / Gmail para continuar.',
     };
   }
 
-  return {
-    ok: false,
-    status: 401,
-    code: 'AUTH_REQUIRED',
-    error: 'Autenticação necessária. Entre com sua conta Google / Gmail para continuar.',
-  };
+  const bearerAuth = await verifyFirebaseBearerToken(bearerToken);
+  if (!bearerAuth.ok) {
+    return bearerAuth;
+  }
+
+  if (
+    sessionClaims?.authState === 'authenticated' &&
+    sessionClaims.uid &&
+    sessionClaims.uid !== bearerAuth.uid
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      code: 'USER_SESSION_CONFLICT',
+      error:
+        'Conflito entre contas: a sessão do navegador pertence a outro usuário. Sincronize seu login.',
+    };
+  }
+
+  if (expectedUidHeader && expectedUidHeader !== bearerAuth.uid) {
+    return {
+      ok: false,
+      status: 409,
+      code: 'USER_SESSION_CONFLICT',
+      error:
+        'Conflito de usuário na requisição: identificador divergente do usuário autenticado.',
+    };
+  }
+
+  return bearerAuth;
 }

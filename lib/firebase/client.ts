@@ -83,13 +83,23 @@ export function handleFirestoreError(
 }
 
 let connectionTested = false;
+const CONN_SESSION_KEY = 'bs_fb_conn_ok';
 
 export async function testFirestoreConnection(): Promise<void> {
   if (!isFirebaseSyncEnabled || !db) return;
   if (connectionTested) return;
   connectionTested = true;
   try {
+    if (
+      typeof window !== 'undefined' &&
+      window.sessionStorage.getItem(CONN_SESSION_KEY) === '1'
+    ) {
+      return;
+    }
     await getDocFromServer(doc(db, 'test', 'connection'));
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(CONN_SESSION_KEY, '1');
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.error('Please check your Firebase configuration.');

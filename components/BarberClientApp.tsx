@@ -1,25 +1,72 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import {Calendar, Clock, Home, LogIn, Scissors, User} from 'lucide-react';
 import {AnimatePresence, motion, MotionConfig} from 'motion/react';
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {AppointmentsView} from '@/components/AppointmentsView';
-import {BarberProfileSheet} from '@/components/BarberProfileSheet';
-import {BarbersView} from '@/components/BarbersView';
-import {BookingConfirmationView} from '@/components/BookingConfirmationView';
-import {BookingFlowView} from '@/components/BookingFlowView';
 import {BrandLogo} from '@/components/BrandLogo';
 import {useFirebaseAuth} from '@/components/FirebaseProvider';
 import {HomeView} from '@/components/HomeView';
-import {MapLocationModal} from '@/components/MapLocationModal';
-import {PrivacyPolicyModal} from '@/components/PrivacyPolicyModal';
-import {ProfileView} from '@/components/ProfileView';
 import {OfflineIndicator, PWAServiceWorkerRegister} from '@/components/PWAControls';
-import {ServiceDetailSheet} from '@/components/ServiceDetailSheet';
-import {ServicesView} from '@/components/ServicesView';
-import {ShopAboutView} from '@/components/ShopAboutView';
 import {SplashOverlay} from '@/components/SplashOverlay';
-import {VirtualTryOnModal} from '@/components/VirtualTryOnModal';
+
+const RouteFallback = () => (
+  <div className="rounded-2xl border border-[#2B2B2B] bg-[#1C1C1C] p-10 text-center text-sm text-[#E5E5E5]/70">
+    Carregando...
+  </div>
+);
+
+const AppointmentsView = dynamic(
+  () => import('@/components/AppointmentsView').then((m) => m.AppointmentsView),
+  {loading: RouteFallback}
+);
+const BarberProfileSheet = dynamic(
+  () => import('@/components/BarberProfileSheet').then((m) => m.BarberProfileSheet),
+  {ssr: false}
+);
+const BarbersView = dynamic(
+  () => import('@/components/BarbersView').then((m) => m.BarbersView),
+  {loading: RouteFallback}
+);
+const BookingConfirmationView = dynamic(
+  () =>
+    import('@/components/BookingConfirmationView').then(
+      (m) => m.BookingConfirmationView
+    ),
+  {loading: RouteFallback}
+);
+const BookingFlowView = dynamic(
+  () => import('@/components/BookingFlowView').then((m) => m.BookingFlowView),
+  {loading: RouteFallback}
+);
+const MapLocationModal = dynamic(
+  () => import('@/components/MapLocationModal').then((m) => m.MapLocationModal),
+  {ssr: false}
+);
+const PrivacyPolicyModal = dynamic(
+  () => import('@/components/PrivacyPolicyModal').then((m) => m.PrivacyPolicyModal),
+  {ssr: false}
+);
+const ProfileView = dynamic(
+  () => import('@/components/ProfileView').then((m) => m.ProfileView),
+  {loading: RouteFallback}
+);
+const ServiceDetailSheet = dynamic(
+  () => import('@/components/ServiceDetailSheet').then((m) => m.ServiceDetailSheet),
+  {ssr: false}
+);
+const ServicesView = dynamic(
+  () => import('@/components/ServicesView').then((m) => m.ServicesView),
+  {loading: RouteFallback}
+);
+const ShopAboutView = dynamic(
+  () => import('@/components/ShopAboutView').then((m) => m.ShopAboutView),
+  {loading: RouteFallback}
+);
+const VirtualTryOnModal = dynamic(
+  () => import('@/components/VirtualTryOnModal').then((m) => m.VirtualTryOnModal),
+  {ssr: false}
+);
 import {BARBERSHOP_INFO} from '@/lib/data/seed';
 import {
   cancelFirestoreAppointment,
@@ -153,10 +200,12 @@ export function BarberClientApp() {
   const visibleAppointments = activeUid
     ? appointments.filter((a) => a.clientId === activeUid)
     : [];
+  const needsAppointmentsListener = route === 'horarios' || route === 'confirmacao';
   const loadingAppointments =
     !authReady ||
     Boolean(
-      activeUid &&
+      needsAppointmentsListener &&
+        activeUid &&
         resolvedAppointmentsUid !== activeUid &&
         visibleAppointments.length === 0
     );
@@ -273,48 +322,54 @@ export function BarberClientApp() {
     if (!authReady) return;
     let active = true;
 
-    if (activeUid) {
-      const unsubscribe = subscribeClientAppointments(
-        activeUid,
-        (list) => {
-          if (!active) return;
-          const ownOnly = list.filter((a) => a.clientId === activeUid);
-          setAppointments(ownOnly);
-          setResolvedAppointmentsUid(activeUid);
-          const signature = `${activeUid}:${ownOnly.length}:${ownOnly.map((a) => `${a.id}:${a.status}:${a.updatedAt}`).join('|')}`;
-          if (lastSavedCacheSignatureRef.current !== signature) {
-            lastSavedCacheSignatureRef.current = signature;
-            try {
-              window.localStorage.setItem(
-                getAppointmentsCacheKey(activeUid),
-                JSON.stringify(ownOnly)
-              );
-            } catch {
-              // Ignore storage failures
-            }
-          }
-        },
-        () => {
-          if (active) setResolvedAppointmentsUid(activeUid);
-        }
-      );
-
+    if (!activeUid) {
+      Promise.resolve().then(() => {
+        if (!active) return;
+        lastSavedCacheSignatureRef.current = '';
+        setAppointments([]);
+        setResolvedAppointmentsUid(null);
+      });
       return () => {
         active = false;
-        unsubscribe();
       };
     }
 
-    Promise.resolve().then(() => {
-      if (!active) return;
-      lastSavedCacheSignatureRef.current = '';
-      setAppointments([]);
-      setResolvedAppointmentsUid(null);
-    });
+    if (!needsAppointmentsListener) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const unsubscribe = subscribeClientAppointments(
+      activeUid,
+      (list) => {
+        if (!active) return;
+        const ownOnly = list.filter((a) => a.clientId === activeUid);
+        setAppointments(ownOnly);
+        setResolvedAppointmentsUid(activeUid);
+        const signature = `${activeUid}:${ownOnly.length}:${ownOnly.map((a) => `${a.id}:${a.status}:${a.updatedAt}`).join('|')}`;
+        if (lastSavedCacheSignatureRef.current !== signature) {
+          lastSavedCacheSignatureRef.current = signature;
+          try {
+            window.localStorage.setItem(
+              getAppointmentsCacheKey(activeUid),
+              JSON.stringify(ownOnly)
+            );
+          } catch {
+            // Ignore storage failures
+          }
+        }
+      },
+      () => {
+        if (active) setResolvedAppointmentsUid(activeUid);
+      }
+    );
+
     return () => {
       active = false;
+      unsubscribe();
     };
-  }, [authReady, activeUid]);
+  }, [authReady, activeUid, needsAppointmentsListener]);
 
   const confirmedAppointmentRef = useRef<Appointment | null>(null);
   useEffect(() => {
@@ -829,34 +884,47 @@ export function BarberClientApp() {
           </div>
         </nav>
 
-        {/* Modais e Detalhes */}
-        <ServiceDetailSheet
-          service={detailService}
-          onClose={() => setDetailService(null)}
-          onBookService={(sId, bId) => startBooking(sId, bId)}
-          onSelectBarber={(b) => setDetailBarber(b)}
-          onOpenTryOn={(styleId) => openTryOn(styleId)}
-        />
+        {/* Modais e Detalhes (carregados sob demanda) */}
+        {detailService && (
+          <ServiceDetailSheet
+            service={detailService}
+            onClose={() => setDetailService(null)}
+            onBookService={(sId, bId) => startBooking(sId, bId)}
+            onSelectBarber={(b) => setDetailBarber(b)}
+            onOpenTryOn={(styleId) => openTryOn(styleId)}
+          />
+        )}
 
-        <BarberProfileSheet
-          barber={detailBarber}
-          onClose={() => setDetailBarber(null)}
-          onBookWithBarber={(bId, sId, date, time) =>
-            startBooking(sId, bId, date, time)
-          }
-          onSelectService={(s) => setDetailService(s)}
-        />
+        {detailBarber && (
+          <BarberProfileSheet
+            barber={detailBarber}
+            onClose={() => setDetailBarber(null)}
+            onBookWithBarber={(bId, sId, date, time) =>
+              startBooking(sId, bId, date, time)
+            }
+            onSelectService={(s) => setDetailService(s)}
+          />
+        )}
 
-        <MapLocationModal open={mapOpen} onClose={() => setMapOpen(false)} />
-        <PrivacyPolicyModal open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
-        <VirtualTryOnModal
-          key={`${tryOnStyle}-${tryOnOpen}`}
-          open={tryOnOpen}
-          initialStyleId={tryOnStyle}
-          onClose={() => setTryOnOpen(false)}
-          onOpenPrivacy={() => setPrivacyOpen(true)}
-          onBookStyle={(sId) => startBooking(sId)}
-        />
+        {mapOpen && (
+          <MapLocationModal open={mapOpen} onClose={() => setMapOpen(false)} />
+        )}
+        {privacyOpen && (
+          <PrivacyPolicyModal
+            open={privacyOpen}
+            onClose={() => setPrivacyOpen(false)}
+          />
+        )}
+        {tryOnOpen && (
+          <VirtualTryOnModal
+            key={`${tryOnStyle}-${tryOnOpen}`}
+            open={tryOnOpen}
+            initialStyleId={tryOnStyle}
+            onClose={() => setTryOnOpen(false)}
+            onOpenPrivacy={() => setPrivacyOpen(true)}
+            onBookStyle={(sId) => startBooking(sId)}
+          />
+        )}
         <OfflineIndicator />
       </div>
     </MotionConfig>

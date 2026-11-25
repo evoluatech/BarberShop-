@@ -5,13 +5,27 @@ import {useEffect, useState} from 'react';
 import {BrandLogo} from '@/components/BrandLogo';
 import {BARBERSHOP_INFO} from '@/lib/data/seed';
 
+const SPLASH_SESSION_KEY = 'bs_splash_seen';
+
 export function SplashOverlay() {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setVisible(false);
-    }, 1250);
+    let alreadySeen = false;
+    try {
+      alreadySeen = window.sessionStorage.getItem(SPLASH_SESSION_KEY) === '1';
+      if (!alreadySeen) {
+        window.sessionStorage.setItem(SPLASH_SESSION_KEY, '1');
+      }
+    } catch {
+      // Ignore storage failures
+    }
+    const timer = window.setTimeout(
+      () => {
+        setVisible(false);
+      },
+      alreadySeen ? 0 : 450
+    );
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -21,15 +35,15 @@ export function SplashOverlay() {
         <motion.div
           initial={{opacity: 1}}
           exit={{opacity: 0}}
-          transition={{duration: 0.35, ease: [0.16, 1, 0.3, 1]}}
+          transition={{duration: 0.25, ease: [0.16, 1, 0.3, 1]}}
           className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#111111] px-6 text-center"
           role="dialog"
           aria-label="Tela de abertura Barber Shop"
         >
           <motion.div
-            initial={{opacity: 0, scale: 0.94}}
+            initial={{opacity: 0, scale: 0.96}}
             animate={{opacity: 1, scale: 1}}
-            transition={{duration: 0.4, ease: [0.16, 1, 0.3, 1]}}
+            transition={{duration: 0.25, ease: [0.16, 1, 0.3, 1]}}
             className="flex flex-col items-center"
           >
             <BrandLogo size="xl" priority />
@@ -42,7 +56,7 @@ export function SplashOverlay() {
               <motion.div
                 initial={{x: '-100%'}}
                 animate={{x: '0%'}}
-                transition={{duration: 1.05, ease: [0.16, 1, 0.3, 1]}}
+                transition={{duration: 0.4, ease: [0.16, 1, 0.3, 1]}}
                 className="h-full w-full bg-[#F7931E]"
               />
             </div>

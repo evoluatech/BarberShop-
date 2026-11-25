@@ -147,15 +147,24 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
     }
 
     const syncPromise = (async () => {
+      const hasSessionCookieHint =
+        typeof window !== 'undefined' &&
+        window.sessionStorage.getItem('bs_api_session_uid') === verifiedUser.uid &&
+        document.cookie.includes('bs_csrf_token=');
+
       if (lastSyncedApiUidRef.current !== verifiedUser.uid) {
-        try {
-          const idToken = await verifiedUser.getIdToken();
-          const apiOk = await syncApiUserSession(idToken);
-          if (apiOk) {
-            lastSyncedApiUidRef.current = verifiedUser.uid;
+        if (hasSessionCookieHint) {
+          lastSyncedApiUidRef.current = verifiedUser.uid;
+        } else {
+          try {
+            const idToken = await verifiedUser.getIdToken();
+            const apiOk = await syncApiUserSession(idToken);
+            if (apiOk) {
+              lastSyncedApiUidRef.current = verifiedUser.uid;
+            }
+          } catch {
+            // Keep working offline; next API call will re-sync
           }
-        } catch {
-          // Keep working offline; next API call will re-sync
         }
       }
 
@@ -214,16 +223,18 @@ export function FirebaseProvider({children}: {children: React.ReactNode}) {
         setCatalogSeeded(false);
       }
       setUser(nextUser);
-      if (nextUser) {
-        testFirestoreConnection();
-      }
       if (nextUser && nextUser.emailVerified) {
+        testFirestoreConnection();
         await syncVerifiedUserState(nextUser);
       } else {
         syncedUidRef.current = null;
         setFirestoreProfile(null);
         setCatalogSeeded(false);
-        if (lastSyncedApiUidRef.current !== null) {
+        const hadSessionHint =
+          lastSyncedApiUidRef.current !== null ||
+          (typeof window !== 'undefined' &&
+            Boolean(window.sessionStorage.getItem('bs_api_session_uid')));
+        if (hadSessionHint) {
           lastSyncedApiUidRef.current = null;
           await clearApiUserSession().catch(() => undefined);
         }

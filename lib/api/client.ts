@@ -100,6 +100,8 @@ async function resolveCsrfToken(forceRefresh = false): Promise<string | null> {
   return pendingCsrfFetch;
 }
 
+const API_SESSION_UID_KEY = 'bs_api_session_uid';
+
 export async function syncApiUserSession(idToken: string): Promise<boolean> {
   const csrfToken = await resolveCsrfToken(true);
   const res = await fetch('/api/auth/session', {
@@ -117,15 +119,29 @@ export async function syncApiUserSession(idToken: string): Promise<boolean> {
   if (!res.ok) {
     return false;
   }
-  const payload = (await res.json()) as {csrfToken?: string};
+  const payload = (await res.json()) as {csrfToken?: string; uid?: string};
   if (payload.csrfToken) {
     cachedCsrfToken = payload.csrfToken;
+  }
+  if (typeof window !== 'undefined' && payload.uid) {
+    try {
+      window.sessionStorage.setItem(API_SESSION_UID_KEY, payload.uid);
+    } catch {
+      // Ignore storage errors
+    }
   }
   return true;
 }
 
 export async function clearApiUserSession(): Promise<void> {
   cachedCsrfToken = null;
+  if (typeof window !== 'undefined') {
+    try {
+      window.sessionStorage.removeItem(API_SESSION_UID_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  }
   const csrfToken = await resolveCsrfToken(true);
   try {
     const res = await fetch('/api/auth/session', {

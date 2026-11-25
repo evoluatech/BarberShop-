@@ -102,6 +102,7 @@ export function AppointmentsView({
   const isOnline = useOnlineStatus();
   const {user, authReady, isVerifiedUser, openAuthModal} = useFirebaseAuth();
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [pastVisibleCount, setPastVisibleCount] = useState<number>(6);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(() =>
     initialActionTarget?.action === 'cancel' ? initialActionTarget.appointment : null
   );
@@ -234,7 +235,13 @@ export function AppointmentsView({
     [appointments]
   );
 
-  const displayedList = tab === 'upcoming' ? upcomingList : pastList;
+  const visiblePastList = useMemo(
+    () => pastList.slice(0, pastVisibleCount),
+    [pastList, pastVisibleCount]
+  );
+
+  const displayedList = tab === 'upcoming' ? upcomingList : visiblePastList;
+  const hasMorePast = tab === 'past' && pastList.length > visiblePastList.length;
 
   const handleConfirmCancel = async () => {
     if (!cancelTarget) return;
@@ -397,6 +404,7 @@ export function AppointmentsView({
           </button>
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayedList.map((apt) => (
             <article
@@ -515,6 +523,18 @@ export function AppointmentsView({
             </article>
           ))}
         </div>
+        {hasMorePast && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={() => setPastVisibleCount((count) => count + 6)}
+              className="min-h-[44px] px-5 py-2 rounded-xl border border-[#2B2B2B] bg-[#1C1C1C] hover:border-[#F7931E]/60 text-xs font-semibold text-white transition-colors"
+            >
+              Ver mais anteriores ({pastList.length - visiblePastList.length} restantes)
+            </button>
+          </div>
+        )}
+        </>
       )}
 
       {/* Modal de confirmação de cancelamento */}

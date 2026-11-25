@@ -57,6 +57,10 @@ service cloud.firestore {
       );
     }
 
+    function isBoundedListQuery(maxLimit) {
+      return request.query.limit != null && request.query.limit <= maxLimit;
+    }
+
     // ==========================
     // Validation Blueprints
     // ==========================
@@ -146,6 +150,8 @@ service cloud.firestore {
         data.barberIds.size() <= 20 &&
         data.barberIds[0] is string &&
         data.barberIds[0].size() <= 80 &&
+        data.barberIds[data.barberIds.size() - 1] is string &&
+        data.barberIds[data.barberIds.size() - 1].size() <= 80 &&
         data.updatedAt is timestamp;
     }
 
@@ -174,8 +180,18 @@ service cloud.firestore {
         data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
         data.role is string && data.role.size() >= 2 && data.role.size() <= 100 &&
         data.isAvailable is bool &&
-        data.workingDays is list && data.workingDays.size() >= 1 && data.workingDays.size() <= 7 && data.workingDays[0] is int &&
-        data.serviceIds is list && data.serviceIds.size() >= 1 && data.serviceIds.size() <= 30 && data.serviceIds[0] is string && data.serviceIds[0].size() <= 80 &&
+        data.workingDays is list &&
+        data.workingDays.size() >= 1 &&
+        data.workingDays.size() <= 7 &&
+        data.workingDays[0] is int &&
+        data.workingDays[data.workingDays.size() - 1] is int &&
+        data.serviceIds is list &&
+        data.serviceIds.size() >= 1 &&
+        data.serviceIds.size() <= 30 &&
+        data.serviceIds[0] is string &&
+        data.serviceIds[0].size() <= 80 &&
+        data.serviceIds[data.serviceIds.size() - 1] is string &&
+        data.serviceIds[data.serviceIds.size() - 1].size() <= 80 &&
         data.pixDetails is map &&
         data.pixDetails.keys().hasAll(['pixKey', 'pixKeyType', 'holderName', 'bankName', 'city']) &&
         data.pixDetails.keys().hasOnly(['pixKey', 'pixKeyType', 'holderName', 'bankName', 'city']) &&
@@ -195,6 +211,19 @@ service cloud.firestore {
         rr.preferredTime is string && rr.preferredTime.size() == 5 && rr.preferredTime.matches('^\\d{2}:\\d{2}$') &&
         rr.requestedAt is string && rr.requestedAt.size() <= 40 &&
         (!('reason' in rr) || (rr.reason is string && rr.reason.size() <= 300));
+    }
+
+    function isValidHistoryEntry(entry) {
+      return entry is map &&
+        entry.keys().hasAll(['id', 'timestamp', 'actor', 'action', 'newStatus']) &&
+        entry.keys().hasOnly(['id', 'timestamp', 'actor', 'action', 'previousStatus', 'newStatus', 'note']) &&
+        entry.id is string && entry.id.size() >= 2 && entry.id.size() <= 128 &&
+        entry.timestamp is string && entry.timestamp.size() <= 40 &&
+        entry.actor in ['cliente', 'barbeiro', 'sistema'] &&
+        entry.action is string && entry.action.size() >= 2 && entry.action.size() <= 200 &&
+        entry.newStatus in ['Pendente', 'Confirmado', 'Concluído', 'Cancelado', 'Reagendamento solicitado'] &&
+        (!('previousStatus' in entry) || entry.previousStatus in ['Pendente', 'Confirmado', 'Concluído', 'Cancelado', 'Reagendamento solicitado']) &&
+        (!('note' in entry) || (entry.note is string && entry.note.size() <= 300));
     }
 
     function isValidAppointment(data) {
@@ -274,9 +303,8 @@ service cloud.firestore {
         data.changeHistory is list &&
         data.changeHistory.size() >= 1 &&
         data.changeHistory.size() <= 30 &&
-        data.changeHistory[0] is map &&
-        data.changeHistory[0].keys().hasAll(['id', 'timestamp', 'actor', 'action', 'newStatus']) &&
-        data.changeHistory[0].keys().hasOnly(['id', 'timestamp', 'actor', 'action', 'previousStatus', 'newStatus', 'note']) &&
+        isValidHistoryEntry(data.changeHistory[0]) &&
+        isValidHistoryEntry(data.changeHistory[data.changeHistory.size() - 1]) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -328,7 +356,7 @@ service cloud.firestore {
     // ==========================
     match /users/{userId} {
       allow get: if isValidId(userId) && (isOwner(userId) || isBarber());
-      allow list: if isBarber();
+      allow list: if isBarber() && isBoundedListQuery(100);
       allow create: if isOwner(userId) &&
         isValidId(userId) &&
         isValidUserProfile(incoming()) &&
@@ -364,7 +392,7 @@ service cloud.firestore {
     // ==========================
     match /admins/{adminId} {
       allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
-      allow list: if isAdmin();
+      allow list: if isAdmin() && isBoundedListQuery(50);
       allow create: if isAdmin() &&
         isValidId(adminId) &&
         isValidAdminRole(incoming()) &&
@@ -380,7 +408,7 @@ service cloud.firestore {
 
     match /barberAccounts/{barberUid} {
       allow get: if isValidId(barberUid) && (isOwner(barberUid) || isAdmin());
-      allow list: if isAdmin();
+      allow list: if isAdmin() && isBoundedListQuery(50);
       allow create: if isAdmin() &&
         isValidId(barberUid) &&
         isValidBarberAccount(incoming()) &&
@@ -399,7 +427,7 @@ service cloud.firestore {
     // ==========================
     match /services/{serviceId} {
       allow get: if isSignedIn() && isValidId(serviceId);
-      allow list: if isSignedIn();
+      allow list: if isSignedIn() && isBoundedListQuery(50);
       allow create, update: if isAdmin() &&
         isValidId(serviceId) &&
         isValidServiceItem(incoming()) &&
@@ -410,7 +438,7 @@ service cloud.firestore {
 
     match /barbers/{barberId} {
       allow get: if isSignedIn() && isValidId(barberId);
-      allow list: if isSignedIn();
+      allow list: if isSignedIn() && isBoundedListQuery(50);
       allow create, update: if isAdmin() &&
         isValidId(barberId) &&
         isValidBarberProfile(incoming()) &&
@@ -428,6 +456,7 @@ service cloud.firestore {
         (existing().clientId == request.auth.uid || isBarber());
 
       allow list: if isVerifiedSignedIn() &&
+        isBoundedListQuery(100) &&
         (resource.data.clientId == request.auth.uid || isBarber());
 
       allow create: if isVerifiedSignedIn() &&
@@ -439,9 +468,11 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time &&
         exists(/databases/$(database)/documents/services/$(incoming().serviceId)) &&
+        get(/databases/$(database)/documents/services/$(incoming().serviceId)).data.active == true &&
         get(/databases/$(database)/documents/services/$(incoming().serviceId)).data.priceCents == incoming().priceCents &&
         get(/databases/$(database)/documents/services/$(incoming().serviceId)).data.durationMinutes == incoming().serviceDurationMinutes &&
         exists(/databases/$(database)/documents/barbers/$(incoming().barberId)) &&
+        get(/databases/$(database)/documents/barbers/$(incoming().barberId)).data.isAvailable == true &&
         existsAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)) &&
         getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.appointmentId == appointmentId &&
         getAfter(/databases/$(database)/documents/availabilitySlots/$(incoming().slotLockId)).data.clientId == request.auth.uid &&
@@ -512,7 +543,7 @@ service cloud.firestore {
     // ==========================
     match /availabilitySlots/{slotId} {
       allow get: if isVerifiedSignedIn() && isValidId(slotId);
-      allow list: if isVerifiedSignedIn();
+      allow list: if isVerifiedSignedIn() && isBoundedListQuery(200);
 
       allow create: if isVerifiedSignedIn() &&
         isValidId(slotId) &&

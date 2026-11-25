@@ -30,10 +30,12 @@ import {
   BusySlotLock,
   computeAvailabilityFromBusyLocks,
   createFirestoreAppointment,
+  loadFirestoreBarbersWithFallback,
   subscribeFirestoreDateBusyLocks,
 } from '@/lib/firebase/repository';
 import {
   Appointment,
+  Barber,
   ClientProfile,
   PaymentMethod,
   TimeSlotAvailability,
@@ -186,14 +188,34 @@ export function BookingFlowView({
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  const [directoryBarbers, setDirectoryBarbers] = useState<Barber[]>(BARBERS);
+
+  useEffect(() => {
+    if (!isOnline || !isVerifiedUser) return;
+    let active = true;
+    loadFirestoreBarbersWithFallback()
+      .then((list) => {
+        if (active && list.length > 0) {
+          setDirectoryBarbers(list);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [isOnline, isVerifiedUser]);
+
   const selectedService = useMemo(
     () => SERVICES.find((s) => s.id === serviceId) ?? SERVICES[0],
     [serviceId]
   );
 
   const eligibleBarbers = useMemo(
-    () => BARBERS.filter((b) => selectedService.barberIds.includes(b.id)),
-    [selectedService]
+    () =>
+      directoryBarbers.filter(
+        (b) => b.isAvailable && selectedService.barberIds.includes(b.id)
+      ),
+    [directoryBarbers, selectedService]
   );
 
   const [liveLocksState, setLiveLocksState] = useState<{
@@ -289,8 +311,17 @@ export function BookingFlowView({
       serviceId,
       barberId,
       busyLocks: liveLocksState.locks,
+      barbers: directoryBarbers,
     });
-  }, [isVerifiedUser, liveLocksState, liveLocksKey, dateISO, serviceId, barberId]);
+  }, [
+    isVerifiedUser,
+    liveLocksState,
+    liveLocksKey,
+    dateISO,
+    serviceId,
+    barberId,
+    directoryBarbers,
+  ]);
 
   const loadingSlots = isVerifiedUser
     ? step === 4 && isOnline && liveLocksState.key !== liveLocksKey
@@ -795,6 +826,26 @@ export function BookingFlowView({
               Alterar data
             </button>
           </div>
+
+          {authReady && !isVerifiedUser && isOnline && (
+            <div className="rounded-xl border border-[#F7931E]/40 bg-[#F7931E]/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck className="h-4 w-4 text-[#F7931E] shrink-0 mt-0.5" />
+                <p className="text-xs text-[#E5E5E5]/85">
+                  Conecte sua conta Google / Gmail para sincronizar os bloqueios em tempo
+                  real da agenda do barbeiro antes de confirmar.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openAuthModal}
+                className="min-h-[38px] inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#F7931E] hover:bg-[#D97706] px-3.5 py-1.5 text-xs font-semibold text-[#111111] transition-colors whitespace-nowrap shrink-0"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>{user ? 'Verificar e-mail' : 'Entrar com Google'}</span>
+              </button>
+            </div>
+          )}
 
           {!isOnline ? (
             <div className="rounded-2xl border border-amber-500/40 bg-[#1C1C1C] p-8 text-center space-y-3">

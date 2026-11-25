@@ -29,16 +29,46 @@ export const CLIENT_SYSTEM_HEADER_VALUE = 'barber-client';
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24; // 24 hours
 const CSRF_TTL_SECONDS = 60 * 60 * 12; // 12 hours
-const DEV_FALLBACK_SECRET = 'barber-shop-client-dev-csrf-session-secret-v1';
+const PLACEHOLDER_SECRET = 'CHANGE_ME_TO_A_STRONG_RANDOM_SECRET';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 let cachedKeyPromise: Promise<CryptoKey> | null = null;
 let cachedSecretValue = '';
+let runtimeEphemeralSecret = '';
+
+let warnedMissingProdSecret = false;
 
 function getSigningSecret(): string {
-  return process.env.SESSION_SIGNING_SECRET || DEV_FALLBACK_SECRET;
+  const envSecret = process.env.SESSION_SIGNING_SECRET?.trim();
+  if (envSecret && envSecret !== PLACEHOLDER_SECRET && envSecret.length >= 16) {
+    return envSecret;
+  }
+
+  const deploymentSeed = [
+    process.env.VERCEL_DEPLOYMENT_ID,
+    process.env.VERCEL_PROJECT_ID,
+    process.env.VERCEL_ORG_ID,
+    process.env.VERCEL_GIT_COMMIT_SHA,
+  ]
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .join(':');
+
+  if (deploymentSeed.length >= 16) {
+    if (process.env.VERCEL_ENV === 'production' && !warnedMissingProdSecret) {
+      warnedMissingProdSecret = true;
+      console.warn(
+        '[security] SESSION_SIGNING_SECRET não configurado na Vercel; usando segredo derivado por deploy.'
+      );
+    }
+    return deploymentSeed;
+  }
+
+  if (!runtimeEphemeralSecret) {
+    runtimeEphemeralSecret = generateRandomId(32);
+  }
+  return runtimeEphemeralSecret;
 }
 
 function getHmacKey(): Promise<CryptoKey> {

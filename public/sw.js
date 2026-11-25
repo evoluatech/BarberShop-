@@ -1,4 +1,4 @@
-const CACHE_NAME = 'barber-shop-pwa-v7';
+const CACHE_NAME = 'barber-shop-pwa-v8';
 const MAX_STATIC_CACHE_ENTRIES = 80;
 const PRECACHE_URLS = [
   '/',
@@ -7,16 +7,6 @@ const PRECACHE_URLS = [
   '/pwa-512x512.png',
   '/apple-touch-icon.png',
   '/favicon.png',
-  '/assets/aistudio/1794865202433_4193a4e3.jpg',
-  '/images/barbershop_hero_1794653287317.jpg',
-  '/images/barbershop_lounge_1794653288316.jpg',
-  '/images/barber_rafael_1794653288488.jpg',
-  '/images/barber_lucas_1794653289184.jpg',
-  '/images/barber_diego_1794653289512.jpg',
-  '/images/service_fade_cut_1794653288698.jpg',
-  '/images/service_scissor_cut_1794653290939.jpg',
-  '/images/service_beard_ritual_1794653292138.jpg',
-  '/images/service_combo_finish_1794653292260.jpg',
 ];
 
 async function safeCachePut(request, response) {
